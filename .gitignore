@@ -1,0 +1,14 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+.vscode/
+.idea/
+
+# local scratch
+*.log
+/tmp/
+
+# audio assets are added deliberately as they're produced; keep the folder tracked
+# (placeholder recordings live in audio/ and SpeechSynthesis covers what's missing)

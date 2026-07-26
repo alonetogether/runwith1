@@ -1,0 +1,480 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Run With — Step 1: Effort Engine</title>
+<style>
+  :root {
+    --bg: #0c0d10;
+    --panel: #16181d;
+    --line: #262a31;
+    --ink: #f2f4f8;
+    --muted: #8a909b;
+    --accent: #6ee7b7;
+    --warm: #fbbf24;
+    --drop: #60a5fa;
+    --surge: #f472b6;
+    --stop: #64748b;
+    --danger: #ef4444;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.4 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; min-height: 100dvh;
+    overscroll-behavior: none;
+  }
+  .screen { flex: 1; display: none; flex-direction: column; padding: 24px; }
+  .screen.active { display: flex; }
+
+  /* ---- pre-run ---- */
+  #screen-prerun { justify-content: center; gap: 28px; text-align: center; }
+  .brand { font-size: 13px; letter-spacing: .28em; text-transform: uppercase; color: var(--muted); }
+  .brand b { color: var(--accent); font-weight: 700; }
+  .tagline { font-size: 15px; color: var(--muted); max-width: 30ch; margin: 0 auto; }
+  .field { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .field label { font-size: 13px; color: var(--muted); }
+  .field input {
+    width: 120px; background: var(--panel); border: 1px solid var(--line);
+    color: var(--ink); font-size: 22px; text-align: center; border-radius: 12px; padding: 10px;
+  }
+  .btn {
+    appearance: none; border: 0; border-radius: 999px; padding: 18px 40px;
+    font-size: 18px; font-weight: 700; color: #04140c; background: var(--accent);
+    cursor: pointer;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 500; }
+  .btn.danger { background: var(--danger); color: #fff; }
+
+  /* ---- running ---- */
+  #screen-running { justify-content: space-between; }
+  .banner {
+    background: #3b2b0a; color: var(--warm); border: 1px solid #5c4410;
+    border-radius: 10px; padding: 10px 14px; font-size: 13px; text-align: center;
+  }
+  .run-main { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; }
+  .elapsed { font-size: 68px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .state-word { font-size: 30px; font-weight: 700; text-transform: lowercase; margin-top: 6px; }
+  .state-word[data-s="warming"] { color: var(--warm); }
+  .state-word[data-s="steady"]  { color: var(--accent); }
+  .state-word[data-s="dropping"]{ color: var(--drop); }
+  .state-word[data-s="surging"] { color: var(--surge); }
+  .state-word[data-s="paused"]  { color: var(--stop); }
+  .cadence { font-size: 17px; color: var(--muted); margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .progress { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 22px; }
+  .progress > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s linear; }
+  .run-foot { margin-top: 22px; display: flex; justify-content: center; }
+
+  /* ---- summary ---- */
+  #screen-summary { gap: 18px; overflow: auto; }
+  #screen-summary h1 { font-size: 22px; margin: 4px 0; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
+  .stat b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .log { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 0; }
+  .log h2 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin: 10px 14px; }
+  .log-row { display: grid; grid-template-columns: 64px 1fr; gap: 10px; padding: 7px 14px; border-top: 1px solid var(--line); font-size: 14px; }
+  .log-row time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .log-row em { font-style: normal; }
+  .log-empty { padding: 16px 14px; color: var(--muted); font-size: 14px; }
+
+  /* ---- dev panel ---- */
+  #dev-toggle {
+    position: fixed; top: calc(env(safe-area-inset-top) + 8px); right: 8px; z-index: 20;
+    background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+    border-radius: 8px; width: 34px; height: 34px; font-size: 16px; cursor: pointer;
+  }
+  #dev {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(340px, 88vw); z-index: 19;
+    background: #101216; border-left: 1px solid var(--line); padding: 52px 16px 16px;
+    overflow: auto; transform: translateX(100%); transition: transform .18s ease;
+    font-size: 13px;
+  }
+  #dev.open { transform: translateX(0); }
+  #dev h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 18px 0 8px; }
+  #dev .kv { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
+  #dev .kv span { color: var(--muted); }
+  #dev .ctl { margin: 10px 0; }
+  #dev .ctl label { display: flex; justify-content: space-between; color: var(--muted); margin-bottom: 4px; }
+  #dev input[type=range] { width: 100%; }
+  #dev input[type=number] { width: 74px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; padding: 4px; }
+  #dev select { width: 100%; background: var(--bg); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; padding: 6px; }
+  #dev .toggle { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+  .sus-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; }
+  .badge { font-variant-numeric: tabular-nums; }
+</style>
+
+<button id="dev-toggle" title="Dev panel">⚙</button>
+
+<!-- ============ PRE-RUN ============ -->
+<section id="screen-prerun" class="screen active">
+  <div>
+    <div class="brand">RUN <b>WITH</b></div>
+  </div>
+  <div class="tagline">Step 1 — effort engine only. No audio, no clips. Start moving and watch the state word change.</div>
+  <div class="field">
+    <label for="dur">Target duration (min)</label>
+    <input id="dur" type="number" min="1" max="180" value="30" inputmode="numeric" />
+  </div>
+  <div><button id="btn-start" class="btn">Start</button></div>
+</section>
+
+<!-- ============ RUNNING ============ -->
+<section id="screen-running" class="screen">
+  <div id="banner" class="banner" hidden></div>
+  <div class="run-main">
+    <div class="elapsed" id="elapsed">00:00</div>
+    <div class="state-word" id="state-word" data-s="warming">warming</div>
+    <div class="cadence" id="cadence">— spm</div>
+    <div class="progress" style="width:min(420px,80vw)"><i id="prog"></i></div>
+  </div>
+  <div class="run-foot"><button id="btn-end" class="btn ghost">End Run</button></div>
+</section>
+
+<!-- ============ SUMMARY ============ -->
+<section id="screen-summary" class="screen">
+  <h1>Run complete</h1>
+  <div class="stats">
+    <div class="stat"><b id="s-dur">—</b><span>duration</span></div>
+    <div class="stat"><b id="s-base">—</b><span>baseline spm</span></div>
+    <div class="stat"><b id="s-avg">—</b><span>avg spm</span></div>
+  </div>
+  <div class="log">
+    <h2>State transition log — the experiment</h2>
+    <div id="log-body"></div>
+  </div>
+  <button id="btn-again" class="btn ghost">New run</button>
+</section>
+
+<!-- ============ DEV PANEL ============ -->
+<aside id="dev">
+  <h3>Live</h3>
+  <div class="kv"><span>cadence (raw)</span><b id="d-craw" class="badge">0</b></div>
+  <div class="kv"><span>cadence (smooth)</span><b id="d-csm" class="badge">0</b></div>
+  <div class="kv"><span>baseline</span><b id="d-base" class="badge">— </b></div>
+  <div class="kv"><span>delta %</span><b id="d-delta" class="badge">0</b></div>
+  <div class="kv"><span>state</span><b id="d-state" class="badge">warming</b></div>
+  <div class="kv"><span>pending → for</span><b id="d-pend" class="badge">—</b></div>
+  <div class="kv"><span>progress</span><b id="d-prog" class="badge">0%</b></div>
+  <div class="kv"><span>source</span><b id="d-src" class="badge">—</b></div>
+
+  <h3>Peak detection</h3>
+  <div class="ctl">
+    <label>threshold (m/s²) <span id="d-thr">2.5</span></label>
+    <input id="c-thr" type="range" min="0.5" max="6" step="0.1" value="2.5" />
+  </div>
+  <div class="ctl">
+    <label for="c-axis">accel axis</label>
+    <select id="c-axis"><option value="y" selected>y</option><option value="x">x</option><option value="z">z</option></select>
+  </div>
+
+  <h3>Simulated cadence (desktop)</h3>
+  <div class="toggle"><input id="c-sim" type="checkbox" /><label for="c-sim">force simulated mode</label></div>
+  <div class="ctl">
+    <label>sim spm <span id="d-simv">165</span></label>
+    <input id="c-simr" type="range" min="0" max="200" step="1" value="165" />
+  </div>
+
+  <h3>Sustain overrides (ms)</h3>
+  <div class="sus-grid">
+    <span>dropping</span><input id="c-sus-dropping" type="number" value="8000" step="500" />
+    <span>surging</span><input id="c-sus-surging" type="number" value="5000" step="500" />
+    <span>steady</span><input id="c-sus-steady" type="number" value="5000" step="500" />
+    <span>stopped</span><input id="c-sus-stopped" type="number" value="4000" step="500" />
+  </div>
+</aside>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------------------
+// Run With — Step 1 of the build order: cadence detector + effort state machine
+// + dev panel + transition log. NO audio, NO conditions, NO clips. This exists
+// to answer one question first: does the state machine track a real body
+// correctly and WITHOUT flapping? Build audio only once this is provably right.
+// ---------------------------------------------------------------------------
+
+const CFG = {
+  PEAK_THRESHOLD: 2.5,        // m/s^2 above rolling mean (tunable in dev panel)
+  PEAK_REFRACTORY_MS: 250,    // min gap between counted peaks
+  PEAK_WINDOW: 8,             // inter-peak intervals averaged for cadence
+  BASELINE_MS: 90000,         // first 90s establishes baseline
+  BASELINE_MIN_CADENCE: 20,   // only real steps feed the baseline median
+  TICK_MS: 500,               // state machine cadence
+  STOPPED_ENTER: 20,          // cadence below this => candidate 'stopped'
+  STOPPED_EXIT: 30,           // must climb past this to LEAVE stopped (hysteresis)
+  DROP_ENTER: -0.06, DROP_EXIT: -0.03,   // dropping hysteresis band
+  SURGE_ENTER: 0.06, SURGE_EXIT: 0.03,   // surging hysteresis band
+  SUSTAIN: { dropping: 8000, surging: 5000, steady: 5000, stopped: 4000, warming: 0 },
+  CADENCE_STALE_MS: 1500,     // no peak within this => cadence decays toward 0
+  MOTION_WAIT_MS: 3000,       // no devicemotion by now => fall back to sim
+};
+
+const S = {
+  running: false,
+  startPerf: 0,
+  targetMs: 30 * 60000,
+  // peak/cadence
+  lastPeakTime: 0,
+  peakIntervals: [],
+  rollMean: 0, rollInit: false,
+  axis: 'y',
+  cadenceRaw: 0, cadenceSmoothed: 0,
+  // sim / source
+  motionSeen: false, simMode: false, simCadence: 165,
+  // effort object (the abstraction everything downstream will read)
+  effort: {
+    cadence_spm: 0, baseline_spm: 0, baseline_locked: false, delta_pct: 0,
+    state: 'warming', elapsed_ms: 0, progress_pct: 0, is_final_stretch: false, stopped_ms: 0,
+  },
+  baselineSamples: [],
+  // state-machine sustain tracking
+  pendingState: null, pendingSince: 0,
+  // stats + log
+  cadSum: 0, cadCount: 0,
+  transitions: [],   // { t_ms, from, to, cadence, delta }
+  tickTimer: null, wakeLock: null,
+};
+
+const now = () => performance.now();
+const $ = (id) => document.getElementById(id);
+const median = (a) => { if (!a.length) return 0; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+const clamp = (v,lo,hi) => Math.max(lo, Math.min(hi, v));
+const mmss = (ms) => { const t=Math.max(0,Math.floor(ms/1000)); return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); };
+const uiWord = (st) => st === 'stopped' ? 'paused' : st;
+
+// ---- motion / peak detection ---------------------------------------------
+function onMotion(e) {
+  S.motionSeen = true;
+  const a = e.accelerationIncludingGravity || e.acceleration;
+  if (!a) return;
+  const v = a[S.axis];
+  if (typeof v !== 'number') return;
+  detectPeak(v, now());
+}
+
+function detectPeak(v, t) {
+  // center the signal on a slow rolling mean so gravity/orientation drops out
+  S.rollMean = S.rollInit ? (S.rollMean * 0.9 + v * 0.1) : v;
+  S.rollInit = true;
+  const centered = v - S.rollMean;
+  if (centered > CFG.PEAK_THRESHOLD && (t - S.lastPeakTime) > CFG.PEAK_REFRACTORY_MS) {
+    if (S.lastPeakTime > 0) {
+      S.peakIntervals.push(t - S.lastPeakTime);
+      if (S.peakIntervals.length > CFG.PEAK_WINDOW) S.peakIntervals.shift();
+    }
+    S.lastPeakTime = t;
+  }
+}
+
+function computeCadence(t) {
+  if (S.simMode) return S.simCadence;
+  if (!S.peakIntervals.length || !S.lastPeakTime) return 0;
+  const mean = S.peakIntervals.reduce((a, b) => a + b, 0) / S.peakIntervals.length;
+  // If steps have stopped arriving, the growing gap since the last peak drags
+  // the effective interval up, so cadence decays to 0 on its own — that's what
+  // lets 'stopped' trigger without special-casing it.
+  const effective = Math.max(mean, t - S.lastPeakTime);
+  return clamp(60000 / effective, 0, 260);
+}
+
+// ---- the state machine: hysteresis in the classifier, sustain on top ------
+function classify(cad, delta, cur, baselineLocked) {
+  // stopped, with an exit threshold higher than entry so it doesn't flap at 20
+  if (cur === 'stopped') { if (cad < CFG.STOPPED_EXIT) return 'stopped'; }
+  else if (cad < CFG.STOPPED_ENTER) return 'stopped';
+
+  if (!baselineLocked) return 'warming';
+
+  // hysteresis: once in dropping/surging, require recovery past the *exit* band
+  if (cur === 'dropping' && delta <= CFG.DROP_EXIT) return 'dropping';
+  if (cur === 'surging'  && delta >= CFG.SURGE_EXIT) return 'surging';
+
+  if (delta < CFG.DROP_ENTER) return 'dropping';
+  if (delta > CFG.SURGE_ENTER) return 'surging';
+  return 'steady';
+}
+
+function logTransition(t, from, to, cad, delta) {
+  S.transitions.push({ t_ms: t - S.startPerf, from, to, cadence: Math.round(cad), delta: +delta.toFixed(3) });
+}
+
+function tick() {
+  if (!S.running) return;
+  const t = now();
+  S.effort.elapsed_ms = t - S.startPerf;
+
+  // cadence
+  S.cadenceRaw = computeCadence(t);
+  S.cadenceSmoothed = S.cadenceSmoothed === 0 ? S.cadenceRaw : (S.cadenceSmoothed * 0.7 + S.cadenceRaw * 0.3);
+  const cad = S.cadenceSmoothed;
+  S.effort.cadence_spm = cad;
+
+  // running average of moving cadence (for the summary)
+  if (cad >= CFG.STOPPED_ENTER) { S.cadSum += cad; S.cadCount++; }
+
+  // baseline (median of real steps over the first 90s)
+  if (!S.effort.baseline_locked) {
+    if (cad >= CFG.BASELINE_MIN_CADENCE) S.baselineSamples.push(cad);
+    if (S.effort.elapsed_ms >= CFG.BASELINE_MS) {
+      S.effort.baseline_spm = median(S.baselineSamples) || cad;
+      S.effort.baseline_locked = true;
+      logTransition(t, 'warming', 'baseline≈' + Math.round(S.effort.baseline_spm) + 'spm', cad, 0);
+    }
+  }
+
+  // delta vs baseline
+  S.effort.delta_pct = (S.effort.baseline_locked && S.effort.baseline_spm > 0)
+    ? (cad - S.effort.baseline_spm) / S.effort.baseline_spm : 0;
+
+  // progress
+  S.effort.progress_pct = clamp(S.effort.elapsed_ms / S.targetMs, 0, 1);
+  S.effort.is_final_stretch = S.effort.progress_pct > 0.80;
+
+  // classify + require a sustained candidate before committing
+  const cand = classify(cad, S.effort.delta_pct, S.effort.state, S.effort.baseline_locked);
+  if (cand === S.effort.state) {
+    S.pendingState = null; S.pendingSince = 0;
+  } else {
+    if (cand !== S.pendingState) { S.pendingState = cand; S.pendingSince = t; }
+    const need = CFG.SUSTAIN[cand] ?? 5000;
+    if (t - S.pendingSince >= need) {
+      const from = S.effort.state;
+      S.effort.state = cand;
+      S.pendingState = null; S.pendingSince = 0;
+      logTransition(t, from, cand, cad, S.effort.delta_pct);
+    }
+  }
+
+  S.effort.stopped_ms = S.effort.state === 'stopped' ? S.effort.stopped_ms + CFG.TICK_MS : 0;
+
+  if (S.effort.progress_pct >= 1) { endRun(true); return; }
+  renderRunning();
+  renderDev(t);
+}
+
+// ---- rendering ------------------------------------------------------------
+function renderRunning() {
+  $('elapsed').textContent = mmss(S.effort.elapsed_ms);
+  const w = $('state-word'); const word = uiWord(S.effort.state);
+  w.textContent = word; w.dataset.s = word;
+  $('cadence').textContent = Math.round(S.effort.cadence_spm) + ' spm'
+    + (S.effort.baseline_locked ? '  ·  base ' + Math.round(S.effort.baseline_spm) : '  ·  finding baseline');
+  $('prog').style.width = (S.effort.progress_pct * 100).toFixed(1) + '%';
+}
+
+function renderDev(t) {
+  $('d-craw').textContent = Math.round(S.cadenceRaw);
+  $('d-csm').textContent = Math.round(S.cadenceSmoothed);
+  $('d-base').textContent = S.effort.baseline_locked ? Math.round(S.effort.baseline_spm) : '(warming)';
+  $('d-delta').textContent = (S.effort.delta_pct * 100).toFixed(1) + '%';
+  $('d-state').textContent = S.effort.state;
+  $('d-pend').textContent = S.pendingState ? (S.pendingState + '  ' + Math.round((t - S.pendingSince)) + '/' + (CFG.SUSTAIN[S.pendingState] ?? 5000) + 'ms') : '—';
+  $('d-prog').textContent = (S.effort.progress_pct * 100).toFixed(0) + '%';
+  $('d-src').textContent = S.simMode ? 'simulated' : (S.motionSeen ? 'devicemotion' : 'waiting…');
+}
+
+// ---- run lifecycle --------------------------------------------------------
+function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id)); }
+
+async function startRun() {
+  S.targetMs = clamp(parseFloat($('dur').value) || 30, 1, 180) * 60000;
+
+  // iOS 13+ motion permission must be requested from a user gesture
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== 'granted') { S.simMode = true; $('c-sim').checked = true; }
+    }
+  } catch (_) { /* fall through to sim */ }
+
+  window.addEventListener('devicemotion', onMotion);
+
+  // reset engine state
+  Object.assign(S, {
+    running: true, startPerf: now(),
+    lastPeakTime: 0, peakIntervals: [], rollMean: 0, rollInit: false,
+    cadenceRaw: 0, cadenceSmoothed: 0, baselineSamples: [],
+    pendingState: null, pendingSince: 0, cadSum: 0, cadCount: 0, transitions: [],
+  });
+  S.effort = { cadence_spm: 0, baseline_spm: 0, baseline_locked: false, delta_pct: 0,
+    state: 'warming', elapsed_ms: 0, progress_pct: 0, is_final_stretch: false, stopped_ms: 0 };
+
+  $('banner').hidden = true;
+  show('screen-running');
+  requestWakeLock();
+
+  // desktop fallback: if no motion arrives, drive cadence from the sim slider
+  setTimeout(() => {
+    if (!S.motionSeen && !S.simMode) {
+      S.simMode = true; $('c-sim').checked = true;
+      const b = $('banner'); b.hidden = false;
+      b.textContent = 'No motion sensor detected — simulated cadence (open ⚙ to drive it).';
+    }
+  }, CFG.MOTION_WAIT_MS);
+
+  S.tickTimer = setInterval(tick, CFG.TICK_MS);
+  tick();
+}
+
+function endRun(auto) {
+  if (!S.running) return;
+  S.running = false;
+  clearInterval(S.tickTimer);
+  window.removeEventListener('devicemotion', onMotion);
+  releaseWakeLock();
+
+  $('s-dur').textContent = mmss(S.effort.elapsed_ms);
+  $('s-base').textContent = S.effort.baseline_locked ? Math.round(S.effort.baseline_spm) : '—';
+  $('s-avg').textContent = S.cadCount ? Math.round(S.cadSum / S.cadCount) : '—';
+
+  const body = $('log-body');
+  if (!S.transitions.length) {
+    body.innerHTML = '<div class="log-empty">No state transitions fired. If you moved and stayed in <em>warming</em>, the baseline never locked (needs 90s) or the peak threshold is off — tune it in ⚙.</div>';
+  } else {
+    body.innerHTML = S.transitions.map(x =>
+      `<div class="log-row"><time>${mmss(x.t_ms)}</time><em><b>${x.from}</b> → <b>${x.to}</b> · ${x.cadence} spm · Δ ${(x.delta*100).toFixed(1)}%</em></div>`
+    ).join('');
+  }
+  show('screen-summary');
+}
+
+// ---- wake lock ------------------------------------------------------------
+async function requestWakeLock() {
+  try { if ('wakeLock' in navigator) S.wakeLock = await navigator.wakeLock.request('screen'); }
+  catch (_) {}
+}
+function releaseWakeLock() { try { S.wakeLock && S.wakeLock.release(); } catch (_) {} S.wakeLock = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.running) requestWakeLock(); });
+
+// ---- End-run: deliberate second tap --------------------------------------
+let endArmed = false, endArmTimer = null;
+$('btn-end').addEventListener('click', () => {
+  if (!endArmed) {
+    endArmed = true;
+    const b = $('btn-end'); b.textContent = 'Tap again to end'; b.classList.remove('ghost'); b.classList.add('danger');
+    endArmTimer = setTimeout(() => {
+      endArmed = false; b.textContent = 'End Run'; b.classList.add('ghost'); b.classList.remove('danger');
+    }, 3000);
+  } else {
+    clearTimeout(endArmTimer); endArmed = false;
+    const b = $('btn-end'); b.textContent = 'End Run'; b.classList.add('ghost'); b.classList.remove('danger');
+    endRun(false);
+  }
+});
+
+$('btn-start').addEventListener('click', startRun);
+$('btn-again').addEventListener('click', () => show('screen-prerun'));
+
+// ---- dev panel wiring -----------------------------------------------------
+$('dev-toggle').addEventListener('click', () => $('dev').classList.toggle('open'));
+$('c-thr').addEventListener('input', (e) => { CFG.PEAK_THRESHOLD = +e.target.value; $('d-thr').textContent = (+e.target.value).toFixed(1); });
+$('c-axis').addEventListener('change', (e) => { S.axis = e.target.value; });
+$('c-sim').addEventListener('change', (e) => { S.simMode = e.target.checked; if (!e.target.checked) $('banner').hidden = true; });
+$('c-simr').addEventListener('input', (e) => { S.simCadence = +e.target.value; $('d-simv').textContent = e.target.value; });
+['dropping','surging','steady','stopped'].forEach(k => {
+  $('c-sus-' + k).addEventListener('change', (e) => { const v = parseInt(e.target.value, 10); if (v >= 0) CFG.SUSTAIN[k] = v; });
+});
+</script>
