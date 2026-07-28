@@ -1,0 +1,271 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Run With — Music Read Test</title>
+<style>
+  :root{--bg:#0c0d10;--panel:#16181d;--line:#262a31;--ink:#f2f4f8;--muted:#8a909b;
+    --accent:#6ee7b7;--warm:#fbbf24;--spot:#1db954;--danger:#ef4444}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;
+    padding:22px;max-width:760px;margin:0 auto}
+  .brand{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted)}
+  .brand b{color:var(--accent)}
+  h1{font-size:21px;margin:8px 0 4px}
+  h2{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:22px 0 8px}
+  p.sub{color:var(--muted);font-size:14px;margin:0 0 4px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+  .btn{appearance:none;border:0;border-radius:999px;padding:14px 26px;font-size:15px;font-weight:700;
+    color:#04140c;background:var(--accent);cursor:pointer}
+  .btn.spot{background:var(--spot);color:#fff}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input[type=text],input[type=datetime-local]{background:var(--bg);border:1px solid var(--line);color:var(--ink);
+    border-radius:10px;padding:10px;font-size:14px}
+  input[type=text]{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace}
+  code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 6px;
+    font:12.5px ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+  .warn{background:#3b2b0a;color:var(--warm);border:1px solid #5c4410;border-radius:10px;padding:10px 12px;font-size:13px;margin:8px 0}
+  .err{background:#3b1010;color:#fca5a5;border:1px solid #5c1717;border-radius:10px;padding:10px 12px;font-size:13px;margin:8px 0}
+  .ok{background:#10241c;color:var(--accent);border:1px solid #1c4436;border-radius:10px;padding:10px 12px;font-size:13px;margin:8px 0}
+  .track{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+  .track img{width:42px;height:42px;border-radius:6px;background:var(--line);flex:none}
+  .track .meta{flex:1;min-width:0}
+  .track .meta b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .track .meta span{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .track time{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;flex:none}
+  .track.inwin{background:#0f1c17;margin:0 -8px;padding:8px;border-radius:8px}
+  ol{padding-left:20px;font-size:14px;line-height:1.7}
+  ol code{font-size:12px}
+  .steps li{margin-bottom:6px}
+  .muted{color:var(--muted);font-size:13px}
+</style>
+
+<div class="brand">RUN <b>WITH</b> · MUSIC READ TEST</div>
+<h1>Can the web app read what you were actually playing?</h1>
+<p class="sub">One question only: given a time window — a run — can this page recover the tracks that were genuinely playing on your phone during it, without you telling it anything? Nothing here touches cadence, coaching, or the calibration test.</p>
+
+<div id="status"></div>
+
+<!-- ---------- SETUP ---------- -->
+<div id="setup">
+  <h2>One-time setup</h2>
+  <div class="card">
+    <p class="sub" style="margin-bottom:10px">Spotify needs you to register a free app to get a Client ID. It takes about two minutes, and it has to be you — I can't accept their developer terms on your behalf.</p>
+    <ol class="steps">
+      <li>Open the <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener" style="color:var(--accent)">Spotify Developer Dashboard</a> and log in.</li>
+      <li>Click <b>Create app</b>. Name and description can be anything.</li>
+      <li>For <b>Redirect URI</b>, paste exactly this and click Add:<br><code id="redir">—</code></li>
+      <li>Under "Which API/SDKs are you planning to use", tick <b>Web API</b>.</li>
+      <li>Save, then open <b>Settings</b> and copy the <b>Client ID</b> (not the secret — you never need the secret here, and you should never paste it into a web page).</li>
+    </ol>
+    <div class="warn" id="redir-warn"></div>
+    <p class="sub" style="margin:12px 0 6px">Client ID</p>
+    <input id="cid" type="text" placeholder="e.g. 4f2a91c8b7d4e6..." autocomplete="off" spellcheck="false" />
+    <div class="row" style="margin-top:10px">
+      <button id="connect" class="btn spot">Connect Spotify</button>
+      <button id="forget" class="btn ghost">Forget</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------- CONNECTED ---------- -->
+<div id="app" hidden>
+  <h2>Your run window</h2>
+  <div class="card">
+    <p class="sub" style="margin-bottom:10px">Pick the window you want to test. The quick buttons are the realistic case: finish a run, come back here, and see if it can reconstruct the soundtrack.</p>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn ghost quick" data-min="30">Last 30 min</button>
+      <button class="btn ghost quick" data-min="60">Last hour</button>
+      <button class="btn ghost quick" data-min="180">Last 3 hours</button>
+    </div>
+    <div class="row">
+      <label class="muted">from <input id="from" type="datetime-local" /></label>
+      <label class="muted">to <input id="to" type="datetime-local" /></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="fetch" class="btn">Read my history</button>
+      <button id="nowplaying" class="btn ghost">What's playing right now?</button>
+      <button id="logout" class="btn ghost">Disconnect</button>
+    </div>
+  </div>
+
+  <div id="live"></div>
+  <div id="result"></div>
+</div>
+
+<p class="muted" style="margin-top:24px"><a href="./" style="color:var(--muted)">← index</a></p>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// Run With — music provenance read test.
+// Spotify Web API, Authorization Code + PKCE (no client secret, safe in-browser).
+// Deliberately isolated from every other prototype in this repo.
+// ---------------------------------------------------------------------------
+
+const AUTH='https://accounts.spotify.com/authorize';
+const TOKEN='https://accounts.spotify.com/api/token';
+const SCOPES='user-read-recently-played user-read-currently-playing user-read-playback-state';
+const REDIRECT = location.origin + location.pathname;
+
+const $=id=>document.getElementById(id);
+const LS={cid:'runwith.spotify.cid', tok:'runwith.spotify.tok'};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+$('redir').textContent = REDIRECT;
+if(location.protocol==='file:'){
+  $('redir-warn').innerHTML='This page is open as a <code>file://</code> URL. Spotify will reject that, and the crypto this flow needs is unavailable. Serve the folder over <code>http://127.0.0.1:8765</code> and open it from there.';
+} else if(location.hostname==='localhost'){
+  $('redir-warn').innerHTML='Spotify no longer accepts <code>localhost</code> in redirect URIs — it requires the literal loopback IP. Open this page at <code>http://127.0.0.1:8765/music.html</code> instead and the URI above will update.';
+} else {
+  $('redir-warn').innerHTML='It must match <em>character for character</em>, including the port and the <code>.html</code>. A trailing slash will break it.';
+}
+
+const say=(cls,html)=>{ $('status').innerHTML=`<div class="${cls}">${html}</div>`; };
+
+// ---- PKCE helpers ---------------------------------------------------------
+const rand=n=>{ const a=new Uint8Array(n); crypto.getRandomValues(a);
+  return Array.from(a,b=>('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-._~')[b%66]).join(''); };
+async function challenge(v){
+  const d=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
+  return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+// ---- token store ----------------------------------------------------------
+function getTok(){ try{ return JSON.parse(localStorage.getItem(LS.tok)||'null'); }catch(_){ return null; } }
+function setTok(t){ t.expires_at = Date.now() + (t.expires_in||3600)*1000 - 60000;
+  localStorage.setItem(LS.tok, JSON.stringify(t)); }
+function clearTok(){ localStorage.removeItem(LS.tok); }
+
+async function validToken(){
+  const t=getTok(); if(!t) return null;
+  if(Date.now() < t.expires_at) return t.access_token;
+  if(!t.refresh_token) { clearTok(); return null; }
+  const cid=localStorage.getItem(LS.cid);
+  const r=await fetch(TOKEN,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({grant_type:'refresh_token',refresh_token:t.refresh_token,client_id:cid})});
+  if(!r.ok){ clearTok(); return null; }
+  const nt=await r.json(); nt.refresh_token = nt.refresh_token||t.refresh_token; setTok(nt);
+  return nt.access_token;
+}
+
+// ---- auth flow ------------------------------------------------------------
+$('cid').value = localStorage.getItem(LS.cid)||'';
+$('connect').addEventListener('click', async ()=>{
+  const cid=$('cid').value.trim();
+  if(!cid) return say('err','Paste your Client ID first.');
+  if(!crypto.subtle) return say('err','This browser context has no Web Crypto — you are probably on file:// or plain http on a non-loopback host. Serve over 127.0.0.1.');
+  localStorage.setItem(LS.cid,cid);
+  const verifier=rand(96);
+  sessionStorage.setItem('runwith.pkce',verifier);
+  const state=rand(16); sessionStorage.setItem('runwith.state',state);
+  const url=new URL(AUTH);
+  url.search=new URLSearchParams({client_id:cid,response_type:'code',redirect_uri:REDIRECT,
+    code_challenge_method:'S256',code_challenge:await challenge(verifier),scope:SCOPES,state});
+  location.href=url.toString();
+});
+$('forget').addEventListener('click',()=>{
+  localStorage.removeItem(LS.cid); clearTok(); $('cid').value=''; say('ok','Cleared.'); render();
+});
+$('logout').addEventListener('click',()=>{ clearTok(); say('ok','Disconnected.'); render(); });
+
+async function handleRedirect(){
+  const q=new URLSearchParams(location.search);
+  if(q.get('error')){ say('err','Spotify refused: <b>'+esc(q.get('error'))+'</b>. The usual cause is a redirect URI mismatch.'); history.replaceState({},'',REDIRECT); return; }
+  const code=q.get('code'); if(!code) return;
+  if(q.get('state')!==sessionStorage.getItem('runwith.state')){ say('err','State mismatch — aborted.'); history.replaceState({},'',REDIRECT); return; }
+  const verifier=sessionStorage.getItem('runwith.pkce');
+  const cid=localStorage.getItem(LS.cid);
+  const r=await fetch(TOKEN,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({grant_type:'authorization_code',code,redirect_uri:REDIRECT,client_id:cid,code_verifier:verifier})});
+  history.replaceState({},'',REDIRECT);
+  if(!r.ok){ say('err','Token exchange failed ('+r.status+'): <code>'+esc(await r.text())+'</code>'); return; }
+  setTok(await r.json());
+  say('ok','Connected. Nothing was sent anywhere — the token lives in this browser only.');
+}
+
+// ---- API ------------------------------------------------------------------
+async function api(path){
+  const tok=await validToken(); if(!tok) throw new Error('not connected');
+  const r=await fetch('https://api.spotify.com/v1'+path,{headers:{Authorization:'Bearer '+tok}});
+  if(r.status===204) return null;
+  if(!r.ok) throw new Error('API '+r.status+': '+await r.text());
+  return r.json();
+}
+
+const fmt=d=>d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+const localInput=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+
+document.querySelectorAll('.quick').forEach(b=>b.addEventListener('click',()=>{
+  const to=new Date(), from=new Date(to.getTime()-b.dataset.min*60000);
+  $('from').value=localInput(from); $('to').value=localInput(to);
+}));
+
+$('fetch').addEventListener('click', async ()=>{
+  $('result').innerHTML='<p class="muted">Reading…</p>';
+  try{
+    const data=await api('/me/player/recently-played?limit=50');
+    const items=(data&&data.items)||[];
+    if(!items.length){ $('result').innerHTML='<div class="warn">Spotify returned no history at all. It only records tracks played for ~30s or more, and only from online playback on an account this app can see.</div>'; return; }
+
+    const fromV=$('from').value?new Date($('from').value):null;
+    const toV=$('to').value?new Date($('to').value):null;
+    const oldest=new Date(items[items.length-1].played_at);
+
+    let inWin=0;
+    const rows=items.map(it=>{
+      const t=it.track, at=new Date(it.played_at);
+      const hit = fromV&&toV ? (at>=fromV&&at<=toV) : false;
+      if(hit) inWin++;
+      const art=(t.album&&t.album.images&&t.album.images[t.album.images.length-1])||null;
+      return `<div class="track${hit?' inwin':''}">
+        ${art?`<img src="${esc(art.url)}" alt="">`:'<div style="width:42px;height:42px;border-radius:6px;background:var(--line)"></div>'}
+        <div class="meta"><b>${esc(t.name)}</b><span>${esc(t.artists.map(a=>a.name).join(', '))}</span></div>
+        <time>${fmt(at)}</time></div>`;
+    }).join('');
+
+    let verdict='';
+    if(fromV&&toV){
+      verdict = inWin>0
+        ? `<div class="ok"><b>${inWin} track${inWin===1?'':'s'}</b> fall inside your window (highlighted). That is the soundtrack, recovered from the API alone — you told it nothing about what you listened to.</div>`
+        : `<div class="warn">No tracks landed in that window. Either nothing played then, or it fell outside what Spotify still remembers (oldest it returned: <b>${fmt(oldest)}</b>).</div>`;
+    } else {
+      verdict = `<div class="warn">Set a from/to window above to test the actual product question — correlating a run to a soundtrack.</div>`;
+    }
+
+    $('result').innerHTML = verdict + `
+      <h2>Recently played (${items.length})</h2>
+      <div class="card">${rows}</div>
+      <div class="warn"><b>Constraints this test exposes:</b> Spotify caps this endpoint at the most recent <b>50</b> tracks and will not page back further than that in practice. Anything played offline never appears. Podcasts are excluded. So a long run, or a busy listening day afterwards, can push a run's soundtrack out of reach — a real design constraint for "package the run with its music", not a bug in this page.</div>`;
+  }catch(e){
+    $('result').innerHTML=`<div class="err">${esc(e.message)}</div>`;
+  }
+});
+
+$('nowplaying').addEventListener('click', async ()=>{
+  $('live').innerHTML='<p class="muted">Checking…</p>';
+  try{
+    const d=await api('/me/player/currently-playing');
+    if(!d||!d.item){ $('live').innerHTML='<div class="warn">Nothing playing right now. Start a track on any device and try again — this is the live-read path a running app would poll.</div>'; return; }
+    const t=d.item, art=(t.album&&t.album.images&&t.album.images[0])||null;
+    $('live').innerHTML=`<div class="ok">Live read works — this is what a run could capture in real time.</div>
+      <div class="card"><div class="track" style="border:0">
+        ${art?`<img src="${esc(art.url)}" alt="" style="width:56px;height:56px">`:''}
+        <div class="meta"><b>${esc(t.name)}</b><span>${esc(t.artists.map(a=>a.name).join(', '))}</span></div>
+        <time>${d.is_playing?'playing':'paused'}</time></div></div>`;
+  }catch(e){ $('live').innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+});
+
+// ---- render ---------------------------------------------------------------
+function render(){
+  const connected=!!getTok();
+  $('app').hidden=!connected;
+  $('setup').style.display=connected?'none':'';
+  if(connected && !$('from').value){
+    const to=new Date(), from=new Date(to.getTime()-60*60000);
+    $('from').value=localInput(from); $('to').value=localInput(to);
+  }
+}
+(async()=>{ await handleRedirect(); render(); })();
+</script>

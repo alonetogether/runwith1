@@ -1,0 +1,470 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Run With — Calibration</title>
+<style>
+  :root {
+    --bg:#0c0d10; --panel:#16181d; --line:#262a31; --ink:#f2f4f8; --muted:#8a909b;
+    --accent:#6ee7b7; --warm:#fbbf24; --hot:#f472b6; --cool:#60a5fa; --danger:#ef4444;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;min-height:100dvh;overscroll-behavior:none}
+  .screen{flex:1;display:none;flex-direction:column;padding:22px;gap:16px}
+  .screen.active{display:flex}
+  .brand{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted)}
+  .brand b{color:var(--accent)}
+  h1{font-size:21px;margin:0}
+  p.sub{color:var(--muted);font-size:14px;margin:0}
+  .btn{appearance:none;border:0;border-radius:999px;padding:16px 32px;font-size:17px;font-weight:700;
+    color:#04140c;background:var(--accent);cursor:pointer}
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+  .btn.danger{background:var(--danger);color:#fff}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .choice{display:flex;gap:10px}
+  .choice button{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:14px;padding:14px;cursor:pointer;text-align:left;font-size:14px}
+  .choice button.on{border-color:var(--accent);background:#10241c}
+  .choice button b{display:block;font-size:15px;margin-bottom:3px}
+  .choice button span{color:var(--muted);font-size:12px;line-height:1.35}
+
+  /* running */
+  #s-run{justify-content:space-between}
+  .seg-name{font-size:27px;font-weight:800;text-align:center}
+  .seg-cue{color:var(--muted);text-align:center;font-size:15px;max-width:34ch;margin:0 auto}
+  .clock{font-size:74px;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;letter-spacing:-.02em}
+  .live{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+  .live .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+  .live .stat b{display:block;font-size:23px;font-variant-numeric:tabular-nums}
+  .live .stat span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em}
+  .bar{height:5px;background:var(--line);border-radius:5px;overflow:hidden;margin-top:14px}
+  .bar>i{display:block;height:100%;width:0;background:var(--accent)}
+  .seg-dots{display:flex;gap:5px;justify-content:center;margin-top:12px}
+  .seg-dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+  .seg-dots i.done{background:var(--accent)}
+  .seg-dots i.now{background:var(--warm);transform:scale(1.4)}
+
+  /* prompts */
+  .modal{position:fixed;inset:0;background:rgba(6,7,9,.93);display:none;flex-direction:column;
+    justify-content:center;padding:24px;gap:16px;z-index:30}
+  .modal.open{display:flex}
+  .modal h2{font-size:19px;margin:0}
+  .rpe{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .rpe button{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:12px;
+    padding:14px 0;font-size:18px;font-weight:700;cursor:pointer}
+  .rpe button.on{border-color:var(--warm);background:#332708;color:var(--warm)}
+  .rpe-scale{display:flex;justify-content:space-between;color:var(--muted);font-size:11px}
+  .num{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);font-size:26px;
+    text-align:center;border-radius:12px;padding:12px}
+
+  /* results */
+  #s-done{overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 6px;text-align:right;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;border:0}
+  .zone{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+  .zone span{color:var(--muted)}
+  .zone b{font-variant-numeric:tabular-nums}
+  textarea{width:100%;height:130px;background:var(--panel);border:1px solid var(--line);color:var(--muted);
+    border-radius:10px;padding:10px;font:11px/1.4 ui-monospace,Menlo,Consolas,monospace}
+  .warn{background:#3b2b0a;color:var(--warm);border:1px solid #5c4410;border-radius:10px;padding:9px 12px;font-size:12.5px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+</style>
+
+<!-- ================= SETUP ================= -->
+<section id="s-setup" class="screen active">
+  <div class="brand">RUN <b>WITH</b> · CALIBRATION</div>
+  <h1>Find your zones</h1>
+  <p class="sub">A graded exertion test. You'll be asked to hold a pace for a set time, from a walk up to an all-out sprint. It measures cadence at every level, and speed if it can get it — then works out what jogging and sprinting actually mean <em>for you</em>.</p>
+
+  <div class="choice" id="env-choice">
+    <button data-env="treadmill">
+      <b>Treadmill</b>
+      <span>You type the belt speed for each stage. Exact ground truth, no GPS noise.</span>
+    </button>
+    <button data-env="outdoor" class="on">
+      <b>Outdoors</b>
+      <span>GPS reads your pace live. Real conditions, noisier numbers.</span>
+    </button>
+  </div>
+
+  <div class="card">
+    <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Protocol</div>
+    <div id="proto-list" style="font-size:13.5px"></div>
+    <div style="margin-top:10px;color:var(--muted);font-size:12px">Total <b id="proto-total">—</b>. Skip any stage from the run screen if you need to.</div>
+  </div>
+
+  <div id="setup-warn"></div>
+  <div class="row"><button id="go" class="btn">Begin</button>
+  <a href="./" style="align-self:center;color:var(--muted);font-size:13px">← index</a></div>
+</section>
+
+<!-- ================= RUN ================= -->
+<section id="s-run" class="screen">
+  <div>
+    <div class="seg-dots" id="dots"></div>
+    <div class="bar"><i id="segbar"></i></div>
+  </div>
+  <div>
+    <div class="seg-name" id="seg-name">—</div>
+    <p class="seg-cue" id="seg-cue"></p>
+    <div class="clock" id="clock">0:00</div>
+    <div class="live">
+      <div class="stat"><b id="l-cad">—</b><span>cadence spm</span></div>
+      <div class="stat"><b id="l-spd">—</b><span id="l-spd-lab">pace</span></div>
+    </div>
+    <div id="gps-warn"></div>
+  </div>
+  <div class="row" style="justify-content:center">
+    <button id="skip" class="btn ghost">Skip stage</button>
+    <button id="abort" class="btn ghost">Abort</button>
+  </div>
+</section>
+
+<!-- ================= RESULTS ================= -->
+<section id="s-done" class="screen">
+  <div class="brand">RUN <b>WITH</b> · PROFILE</div>
+  <h1>Your zones</h1>
+  <div class="card" id="zones"></div>
+  <div class="card">
+    <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Per stage</div>
+    <div style="overflow-x:auto"><table id="tbl"></table></div>
+  </div>
+  <div id="quality"></div>
+  <div class="card">
+    <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Raw log (portable JSON)</div>
+    <textarea id="json" readonly></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="copy" class="btn ghost">Copy</button>
+      <button id="dl" class="btn ghost">Download</button>
+      <button id="again" class="btn ghost">New test</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MODALS ================= -->
+<div class="modal" id="m-speed">
+  <h2 id="m-speed-title">Belt speed for that stage?</h2>
+  <p class="sub">Read it off the treadmill. Leave blank if you'd rather skip it.</p>
+  <input id="m-speed-val" class="num" type="number" step="0.1" min="0" inputmode="decimal" placeholder="e.g. 8.5" />
+  <div class="choice">
+    <button id="m-speed-unit-kph" class="on" style="text-align:center">km/h</button>
+    <button id="m-speed-unit-mph" style="text-align:center">mph</button>
+  </div>
+  <button id="m-speed-ok" class="btn">Save &amp; continue</button>
+</div>
+
+<div class="modal" id="m-rpe">
+  <h2>How hard did that feel?</h2>
+  <p class="sub">Rate of perceived exertion, 1 (strolling) to 10 (absolutely everything).</p>
+  <div class="rpe" id="rpe-grid"></div>
+  <div class="rpe-scale"><span>1 easy</span><span>10 max</span></div>
+  <button id="m-rpe-ok" class="btn">Continue</button>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// Run With — Calibration PoC.
+// Separate from the coaching prototype on purpose: this tests ONE thing —
+// can a phone build a personal exertion profile (jog vs sprint) from a guided
+// graded test? Treadmill and outdoor modes write the SAME log schema so the
+// two can be compared later.
+// ---------------------------------------------------------------------------
+
+const PROTOCOL = [
+  { id:'stand',  name:'Stand still',   sec:45,  cue:'Just stand. This is the noise floor — it tells us what "not running" looks like on your phone.', measure:false },
+  { id:'walk',   name:'Walk',          sec:120, cue:'Comfortable walking pace. You could hold a conversation without noticing.', zone:'walk' },
+  { id:'jog',    name:'Leisurely jog', sec:180, cue:'Easy jog. You could talk in full sentences. This is the pace you would pick without thinking.', zone:'jog' },
+  { id:'steady', name:'Steady effort', sec:180, cue:'Comfortably hard. Talking is possible but you would rather not. Around 70–80%.', zone:'steady' },
+  { id:'hard',   name:'Hard',          sec:120, cue:'About 85–90%. Only a few words at a time. Not a sprint — but you are working.', zone:'hard' },
+  { id:'sprint', name:'All-out sprint',sec:30,  cue:'Everything you have. Thirty seconds. Go.', zone:'sprint' },
+  { id:'cool',   name:'Cool down',     sec:120, cue:'Walk it off. Breathe.', measure:false },
+];
+
+const CFG = {
+  PEAK_THRESHOLD:2.5, PEAK_REFRACTORY_MS:250, PEAK_WINDOW:8,
+  TICK_MS:500, SAMPLE_SETTLE_FRAC:0.35, // ignore first 35% of a stage (ramp-up)
+};
+
+const S = {
+  env:'outdoor', segIdx:-1, segStart:0, running:false, tick:null,
+  // cadence
+  lastPeak:0, intervals:[], rollMean:0, rollInit:false, motionSeen:false, cadence:0, cadSm:0,
+  // gps
+  geoId:null, lastFix:null, gpsSpeed:null, gpsSamples:[], gpsDenied:false, gpsAccuracy:null,
+  // collection
+  segSamples:[], results:[], startedAt:null,
+};
+
+const $=id=>document.getElementById(id);
+const now=()=>performance.now();
+const med=a=>{if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const mmss=ms=>{const t=Math.max(0,Math.ceil(ms/1000));return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')};
+const show=id=>document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
+const paceStr=mps=>{ if(!mps||mps<=0.2) return '—'; const spk=1000/mps; return Math.floor(spk/60)+':'+String(Math.round(spk%60)).padStart(2,'0'); };
+
+// ---- setup screen ---------------------------------------------------------
+$('proto-list').innerHTML = PROTOCOL.map(p=>
+  `<div style="display:flex;justify-content:space-between;padding:3px 0">
+     <span>${p.name}</span><span style="color:var(--muted)">${p.sec>=60?(p.sec/60)+' min':p.sec+'s'}</span></div>`).join('');
+$('proto-total').textContent = Math.round(PROTOCOL.reduce((a,p)=>a+p.sec,0)/60)+' min';
+
+document.querySelectorAll('#env-choice button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('#env-choice button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); S.env=b.dataset.env; renderSetupWarn();
+  });
+});
+function renderSetupWarn(){
+  $('setup-warn').innerHTML = S.env==='treadmill'
+    ? `<div class="warn">Treadmill mode: GPS is meaningless indoors, so you'll be asked to type the belt speed after each stage. That entry <em>is</em> the ground truth — it's what makes cadence convertible into real pace.</div>`
+    : `<div class="warn">Outdoor mode: needs location permission for pace. Give it a minute of open sky before you start — GPS speed is unreliable for the first few fixes.</div>`;
+}
+renderSetupWarn();
+
+// ---- sensors --------------------------------------------------------------
+function onMotion(e){
+  S.motionSeen=true;
+  const a=e.accelerationIncludingGravity||e.acceleration; if(!a) return;
+  const v=a.y; if(typeof v!=='number') return;
+  const t=now();
+  S.rollMean = S.rollInit ? S.rollMean*0.9+v*0.1 : v; S.rollInit=true;
+  if(v-S.rollMean > CFG.PEAK_THRESHOLD && t-S.lastPeak > CFG.PEAK_REFRACTORY_MS){
+    if(S.lastPeak>0){ S.intervals.push(t-S.lastPeak); if(S.intervals.length>CFG.PEAK_WINDOW) S.intervals.shift(); }
+    S.lastPeak=t;
+  }
+}
+function cadenceNow(t){
+  if(!S.intervals.length||!S.lastPeak) return 0;
+  const mean=S.intervals.reduce((a,b)=>a+b,0)/S.intervals.length;
+  return clamp(60000/Math.max(mean, t-S.lastPeak), 0, 280);
+}
+function startGeo(){
+  if(S.env!=='outdoor'||!navigator.geolocation) return;
+  S.geoId = navigator.geolocation.watchPosition(pos=>{
+    S.gpsAccuracy = pos.coords.accuracy;
+    let mps = pos.coords.speed; // m/s, null on some devices
+    if(mps==null && S.lastFix){
+      const dt=(pos.timestamp-S.lastFix.timestamp)/1000;
+      if(dt>0.5) mps = haversine(S.lastFix.coords,pos.coords)/dt;
+    }
+    if(mps!=null && isFinite(mps) && mps>=0) S.gpsSpeed=mps;
+    S.lastFix=pos;
+  }, err=>{
+    S.gpsDenied=true;
+    $('gps-warn').innerHTML=`<div class="warn" style="margin-top:10px">No GPS (${err.code===1?'permission denied':'unavailable'}). Cadence still records; pace will be blank.</div>`;
+  }, {enableHighAccuracy:true, maximumAge:1000, timeout:15000});
+}
+function haversine(a,b){
+  const R=6371000,r=Math.PI/180;
+  const dLat=(b.latitude-a.latitude)*r, dLon=(b.longitude-a.longitude)*r;
+  const la1=a.latitude*r, la2=b.latitude*r;
+  const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+// ---- run flow -------------------------------------------------------------
+$('go').addEventListener('click', async ()=>{
+  try{
+    if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
+      await DeviceMotionEvent.requestPermission();
+    }
+  }catch(_){}
+  window.addEventListener('devicemotion', onMotion);
+  startGeo();
+  S.startedAt=new Date().toISOString();
+  S.results=[]; S.segIdx=-1; S.running=true;
+  $('l-spd-lab').textContent = S.env==='treadmill' ? 'entered after stage' : 'pace min/km';
+  renderDots(); show('s-run'); nextSeg();
+  S.tick=setInterval(loop, CFG.TICK_MS);
+  try{ if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); }catch(_){}
+});
+
+function renderDots(){
+  $('dots').innerHTML = PROTOCOL.map((_,i)=>
+    `<i class="${i<S.segIdx?'done':i===S.segIdx?'now':''}"></i>`).join('');
+}
+
+function nextSeg(){
+  S.segIdx++;
+  if(S.segIdx>=PROTOCOL.length){ finish(); return; }
+  const p=PROTOCOL[S.segIdx];
+  S.segStart=now(); S.segSamples=[]; S.gpsSamples=[];
+  $('seg-name').textContent=p.name;
+  $('seg-cue').textContent=p.cue;
+  renderDots();
+}
+
+function loop(){
+  if(!S.running) return;
+  const t=now(), p=PROTOCOL[S.segIdx]; if(!p) return;
+  const el=t-S.segStart, frac=clamp(el/(p.sec*1000),0,1);
+
+  S.cadence=cadenceNow(t);
+  S.cadSm = S.cadSm===0 ? S.cadence : S.cadSm*0.7+S.cadence*0.3;
+
+  // only collect after the stage has had time to settle into its pace
+  if(p.measure!==false && frac>CFG.SAMPLE_SETTLE_FRAC){
+    S.segSamples.push(S.cadSm);
+    if(S.gpsSpeed!=null) S.gpsSamples.push(S.gpsSpeed);
+  }
+
+  $('clock').textContent = mmss(p.sec*1000-el);
+  $('l-cad').textContent = Math.round(S.cadSm)||'—';
+  $('l-spd').textContent = S.env==='treadmill' ? '—'
+    : (S.gpsSpeed!=null ? paceStr(S.gpsSpeed) : (S.gpsDenied?'—':'…'));
+  $('segbar').style.width=(frac*100)+'%';
+
+  if(frac>=1) endSeg();
+}
+
+function endSeg(){
+  const p=PROTOCOL[S.segIdx];
+  const rec = {
+    id:p.id, name:p.name, zone:p.zone||null, planned_sec:p.sec,
+    cadence_spm: S.segSamples.length ? Math.round(med(S.segSamples)) : null,
+    cadence_samples: S.segSamples.length,
+    speed_mps: null, speed_source: null, rpe: null,
+  };
+  if(S.env==='outdoor' && S.gpsSamples.length){
+    rec.speed_mps = +med(S.gpsSamples).toFixed(3);
+    rec.speed_source = 'gps';
+    rec.gps_accuracy_m = S.gpsAccuracy!=null ? Math.round(S.gpsAccuracy) : null;
+  }
+  S.results.push(rec);
+  if(p.measure===false){ nextSeg(); return; }
+  askSpeedThenRpe(rec);
+}
+
+// modal chain: (treadmill only) belt speed -> RPE -> next stage
+let speedUnit='kph', pendingRec=null, pendingRpe=null;
+function askSpeedThenRpe(rec){
+  pendingRec=rec;
+  if(S.env==='treadmill'){
+    $('m-speed-title').textContent=`Belt speed during "${rec.name}"?`;
+    $('m-speed-val').value=''; $('m-speed').classList.add('open'); $('m-speed-val').focus();
+  } else askRpe();
+}
+$('m-speed-unit-kph').addEventListener('click',()=>{speedUnit='kph';$('m-speed-unit-kph').classList.add('on');$('m-speed-unit-mph').classList.remove('on')});
+$('m-speed-unit-mph').addEventListener('click',()=>{speedUnit='mph';$('m-speed-unit-mph').classList.add('on');$('m-speed-unit-kph').classList.remove('on')});
+$('m-speed-ok').addEventListener('click',()=>{
+  const v=parseFloat($('m-speed-val').value);
+  if(isFinite(v)&&v>0){
+    pendingRec.speed_mps = +(speedUnit==='kph' ? v/3.6 : v*0.44704).toFixed(3);
+    pendingRec.speed_source = 'treadmill_manual';
+    pendingRec.speed_entered = v+' '+speedUnit;
+  }
+  $('m-speed').classList.remove('open'); askRpe();
+});
+
+$('rpe-grid').innerHTML=Array.from({length:10},(_,i)=>`<button data-v="${i+1}">${i+1}</button>`).join('');
+$('rpe-grid').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  pendingRpe=+b.dataset.v;
+  document.querySelectorAll('#rpe-grid button').forEach(x=>x.classList.toggle('on',x===b));
+});
+function askRpe(){ pendingRpe=null; document.querySelectorAll('#rpe-grid button').forEach(x=>x.classList.remove('on')); $('m-rpe').classList.add('open'); }
+$('m-rpe-ok').addEventListener('click',()=>{
+  if(pendingRec) pendingRec.rpe=pendingRpe;
+  $('m-rpe').classList.remove('open'); nextSeg();
+});
+
+$('skip').addEventListener('click',()=>{
+  const p=PROTOCOL[S.segIdx];
+  S.results.push({id:p.id,name:p.name,zone:p.zone||null,planned_sec:p.sec,skipped:true,
+    cadence_spm:null,cadence_samples:0,speed_mps:null,speed_source:null,rpe:null});
+  nextSeg();
+});
+let abortArmed=false;
+$('abort').addEventListener('click',()=>{
+  if(!abortArmed){ abortArmed=true; $('abort').textContent='Tap again to abort'; $('abort').classList.add('danger');
+    setTimeout(()=>{abortArmed=false;$('abort').textContent='Abort';$('abort').classList.remove('danger')},3000); return; }
+  finish();
+});
+
+// ---- results --------------------------------------------------------------
+function finish(){
+  S.running=false; clearInterval(S.tick);
+  window.removeEventListener('devicemotion', onMotion);
+  if(S.geoId!=null) navigator.geolocation.clearWatch(S.geoId);
+
+  const measured = S.results.filter(r=>r.zone && r.cadence_spm);
+  // step length = speed / steps-per-second. The metric that actually separates
+  // "jogging faster" from "sprinting" — cadence alone can't tell them apart.
+  measured.forEach(r=>{
+    r.step_length_m = (r.speed_mps && r.cadence_spm)
+      ? +(r.speed_mps/(r.cadence_spm/60)).toFixed(3) : null;
+  });
+
+  const jog = measured.find(r=>r.zone==='jog');
+  const spr = measured.find(r=>r.zone==='sprint');
+  const profile = {
+    jog_spm: jog?.cadence_spm ?? null,
+    sprint_spm: spr?.cadence_spm ?? null,
+    jog_speed_mps: jog?.speed_mps ?? null,
+    sprint_speed_mps: spr?.speed_mps ?? null,
+    cadence_range_pct: (jog?.cadence_spm && spr?.cadence_spm)
+      ? +(((spr.cadence_spm-jog.cadence_spm)/jog.cadence_spm)*100).toFixed(1) : null,
+    speed_range_pct: (jog?.speed_mps && spr?.speed_mps)
+      ? +(((spr.speed_mps-jog.speed_mps)/jog.speed_mps)*100).toFixed(1) : null,
+  };
+
+  const log = {
+    schema:'runwith.calibration.v1', env:S.env, started_at:S.startedAt,
+    completed_at:new Date().toISOString(), device:navigator.userAgent,
+    motion_available:S.motionSeen, profile, segments:S.results,
+  };
+
+  $('zones').innerHTML =
+    row('Jogging cadence', profile.jog_spm, 'spm') +
+    row('Sprint cadence', profile.sprint_spm, 'spm') +
+    row('Jogging pace', profile.jog_speed_mps?paceStr(profile.jog_speed_mps):null,'min/km') +
+    row('Sprint pace', profile.sprint_speed_mps?paceStr(profile.sprint_speed_mps):null,'min/km') +
+    row('Cadence spread jog→sprint', profile.cadence_range_pct, '%') +
+    row('Speed spread jog→sprint', profile.speed_range_pct, '%');
+
+  $('tbl').innerHTML =
+    `<tr><th>Stage</th><th>spm</th><th>pace</th><th>step m</th><th>RPE</th></tr>` +
+    S.results.map(r=>`<tr><td>${r.name}${r.skipped?' <span style="color:var(--muted)">(skipped)</span>':''}</td>
+      <td>${r.cadence_spm??'—'}</td><td>${r.speed_mps?paceStr(r.speed_mps):'—'}</td>
+      <td>${r.step_length_m??'—'}</td><td>${r.rpe??'—'}</td></tr>`).join('');
+
+  // honest read on whether this test is even usable
+  const notes=[];
+  if(!S.motionSeen) notes.push('No accelerometer data arrived — cadence numbers are not trustworthy. Was this run on a desktop browser?');
+  if(profile.cadence_range_pct!=null && profile.cadence_range_pct < 12)
+    notes.push(`Cadence only moved ${profile.cadence_range_pct}% between your jog and your sprint. That is a narrow band — cadence alone may not be enough to tell them apart, which is exactly what this test is meant to reveal.`);
+  if(S.env==='outdoor' && !measured.some(r=>r.speed_mps))
+    notes.push('No GPS speed captured, so pace and step length are blank. Cadence-only profile.');
+  if(S.env==='treadmill' && !measured.some(r=>r.speed_mps))
+    notes.push('No belt speeds entered, so there is no ground truth to convert cadence into pace.');
+  $('quality').innerHTML = notes.length ? notes.map(n=>`<div class="warn" style="margin-bottom:8px">${n}</div>`).join('') : '';
+
+  $('json').value=JSON.stringify(log,null,2);
+  try{
+    const all=JSON.parse(localStorage.getItem('runwith.calibrations')||'[]');
+    all.push(log); localStorage.setItem('runwith.calibrations',JSON.stringify(all.slice(-20)));
+  }catch(_){}
+  window.__lastLog=log;
+  show('s-done');
+}
+function row(label,val,unit){
+  return `<div class="zone"><span>${label}</span><b>${val==null?'—':val+(unit?' '+unit:'')}</b></div>`;
+}
+
+$('copy').addEventListener('click',async()=>{
+  try{ await navigator.clipboard.writeText($('json').value); $('copy').textContent='Copied'; setTimeout(()=>$('copy').textContent='Copy',1500);}catch(_){}
+});
+$('dl').addEventListener('click',()=>{
+  const b=new Blob([$('json').value],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b); a.download='runwith-calibration.json'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+});
+$('again').addEventListener('click',()=>location.reload());
+</script>

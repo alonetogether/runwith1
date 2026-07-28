@@ -2,67 +2,98 @@
 
 *You're always running **with** something. The sentence never finishes — you finish it.*
 
-A platform for channeling the delight that lives behind screens into a reason to move the body. This repo starts with the smallest honest slice of it.
+A platform for channeling the delight that lives behind screens into a reason to move the body.
 
-## Where this is right now — Step 1 of the coaching-run prototype
+## Three prototypes, tested separately
 
-`index.html` is a **single, dependency-free file**: cadence detection, an effort state
-machine, a dev panel, and a state-transition log. **No audio, no clips, no ghost, no GPS.**
+Each file is standalone, dependency-free, and isolates **one** unknown. They are deliberately
+not wired together — if you bolt them into one app, a failure tells you "something broke"
+instead of telling you *which assumption was wrong*.
 
-It exists to answer one question before anything else gets built:
+| File | The one question it answers | Status |
+|---|---|---|
+| [`calibrate.html`](calibrate.html) | Can a phone build a personal exertion profile — what *your* jog and *your* sprint actually are? | ready to test |
+| [`music.html`](music.html) | Can a web page recover what was genuinely playing during a run, without being told? | ready to test |
+| [`index.html`](index.html) | Does an effort state machine track a real body without flapping? (Step 1 of the coaching run) | verified synthetically |
 
-> Does the effort state machine track a real body correctly — and *without flapping*?
+## Run them
 
-Audio does not get built until the answer is yes. That's the build order, and it's
-deliberate: a beautiful audio layer on a flapping state machine fires clips at random,
-and you'd wrongly conclude the whole concept is dead.
-
-### The effort state
-Everything downstream reads from one object: `cadence_spm`, `baseline_spm`, `delta_pct`,
-`state` (`warming` / `steady` / `dropping` / `surging` / `stopped`), `progress_pct`,
-`is_final_stretch`. Baseline is the median of your first 90 seconds. State transitions
-require **sustained** conditions (dropping 8s, surging/steady 5s, stopped 4s) and carry
-**hysteresis** so they don't oscillate at the boundary. `stopped` never ends the run and
-never nags — stopping for breath is part of running.
-
-## Run it
-
-No build step, no framework. Node isn't required. Serve the folder and open it:
+No build step, no framework, no Node. Serve the folder over the **loopback IP** — not
+`localhost`, because Spotify no longer accepts it in redirect URIs:
 
 ```bash
-python -m http.server 8765
+python -m http.server 8765 --bind 127.0.0.1
 ```
 
-Then open `http://localhost:8765/` on the device. On a phone, tap **Start** (grant motion
-access on iOS). At a desk with no motion sensor, it falls back to a **simulated cadence
-slider** in the dev panel (⚙, top-right) so the whole machine is testable without moving.
+Then open `http://127.0.0.1:8765/calibrate.html` (or `music.html`, `index.html`).
 
-## The treadmill test (the actual point of Step 1)
+---
 
-Put it on a treadmill, run ~5+ min so the baseline locks, then deliberately let your pace
-sag. Open the dev panel and **watch the state word change.** At the end, the summary screen
-shows every transition with its timestamp and triggering cadence/delta — that log *is* the
-experiment. If a transition fired at the wrong moment, tune the peak `threshold`, then the
-`sustain` durations, then the `delta` thresholds — in that order.
+## 1 — Calibration (`calibrate.html`)
 
-## Verified so far
+A guided graded exertion test: stand → walk → leisurely jog → steady → hard → all-out
+sprint → cool down. It measures cadence throughout, asks for RPE (perceived exertion, 1–10)
+after each stage, and captures speed. Then it derives your zones.
 
-The state machine was exercised headlessly against a synthetic cadence trace
-(warm-up → drop → recover → surge → stop → resume): correct transition sequence, correct
-baseline, and a single-tick dip injected mid-steady was **absorbed, not committed** — no
-flapping. `classify()` passes threshold + hysteresis checks in both directions.
+**Two environments, one log schema** — so the runs are comparable afterwards:
 
-## Explicitly NOT in this prototype
+- **Treadmill** — you type the belt speed per stage. Exact ground truth; GPS is meaningless indoors.
+- **Outdoors** — GPS reads pace live (`coords.speed`, falling back to haversine between fixes). Real conditions, noisier.
 
-Ghost / opponent / gap / racing · spatial audio panning · avatars · GPS · servers /
-accounts · music · the dap haptic · audio recording. Each one contaminates the single
-variable Step 1 isolates. They come later, in order.
+It discards the first 35% of each stage before sampling, so you're measuring the pace you
+settled into rather than the ramp-up.
 
-## Build order
+**The metric that matters is step length** (`speed ÷ steps-per-second`). In a synthetic run,
+cadence rose only ~24% from jog to sprint while speed rose ~154% — cadence *alone* is a weak
+way to tell jogging from sprinting, and step length is what actually separates them. The
+results screen calls this out explicitly if your own spread comes back narrow.
 
-1. **Cadence + effort state machine + dev panel — done, verified.** ← you are here
-2. Condition evaluator + firing rules (console-logged, still no audio)
-3. Audio playback + ducking + `SpeechSynthesis` fallback
-4. Screens (select / finish) + clip log surface
-5. `localStorage` persistence
-6. Second artifact (the sparse register) — proves the format is neutral
+Exports portable JSON (`runwith.calibration.v1`) and keeps the last 20 runs in `localStorage`.
+
+## 2 — Music provenance (`music.html`)
+
+Spotify Web API via **Authorization Code + PKCE** — no client secret, nothing leaves the
+browser, token stays in `localStorage`. Give it a time window; it tells you which tracks were
+genuinely playing then.
+
+**One-time setup is yours to do:** register a free app at the
+[Spotify Developer Dashboard](https://developer.spotify.com/dashboard), add
+`http://127.0.0.1:8765/music.html` as the redirect URI (character-for-character), tick Web API,
+and copy the **Client ID**. You never need the client secret — never paste one into a web page.
+
+Scopes: `user-read-recently-played`, `user-read-currently-playing`, `user-read-playback-state`.
+
+**Constraints this test is designed to expose,** because they shape the product:
+Spotify caps recently-played at the most recent **50 tracks**, won't page meaningfully further
+back, excludes offline playback, and excludes podcasts. A long run — or a busy listening day
+afterwards — can push a run's soundtrack permanently out of reach. Better to learn that now
+than after building the packaging layer on top of it.
+
+**SoundCloud** is not implemented. Their public API has been closed to new app registrations
+for years; a button that always fails is worse than no button. The provider logic is isolated
+enough to add one later if access reopens.
+
+## 3 — Coaching effort engine (`index.html`)
+
+Step 1 of the coaching-run prototype: accelerometer peak detection → cadence → a 90-second
+median baseline → an effort state machine (`warming` / `steady` / `dropping` / `surging` /
+`stopped`) with sustained transitions and hysteresis so it doesn't oscillate. Dev panel for
+tuning without stopping; the finish screen logs every transition — that log *is* the experiment.
+
+`stopped` never ends the run and never nags. Stopping for breath is part of running.
+
+**No audio, no clips, no ghost, no GPS** — by design. Audio only gets built once the state
+machine is provably stable, because a beautiful audio layer on a flapping state machine fires
+clips at random and you'd wrongly conclude the whole concept is dead.
+
+Verified headlessly against a synthetic trace: correct transition sequence, correct baseline,
+and a single-tick dip injected mid-steady was **absorbed, not committed** — no flapping.
+
+---
+
+## What is deliberately NOT built yet
+
+Ghost / opponent / gap / racing · spatial audio panning · avatars · servers or accounts ·
+the dap haptic · audio recording · any coupling between the three prototypes above.
+
+Each would contaminate a measurement that hasn't been taken yet.
