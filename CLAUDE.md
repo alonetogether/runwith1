@@ -29,11 +29,11 @@ The person you're building for is one developer with a treadmill, some friends, 
 An iOS app, native Swift and SwiftUI, that does two things on a shared foundation:
 
 1. **Calibration.** A guided graded exertion test — stand, walk, leisurely jog, steady, hard, all-out sprint, cool down — that measures what *this particular person's* jog and sprint actually are, and persists that profile.
-2. **Live effort readout.** A running screen showing cadence, pace, and a single-word effort state, driven by the same model the calibration uses.
+2. **Live effort readout.** A running screen showing cadence, pace, and a single-word effort state, driven by the same model the calibration uses. It should be reachable in one tap from launch, choosing nothing — this is the embryo of the product's main entry path, where a person just starts running and the app quietly records.
 
 **Done means:** it installs and runs on the developer's own iPhone, the effort model is a pure module with no platform imports and is covered by tests that replay recorded sensor traces, and a real calibration session produces a persisted profile that survives relaunch.
 
-**Done does not mean TestFlight.** Apple Developer Program enrollment failed on a payment error and is being retried; assume no paid membership exists. Build to device-installable via free provisioning. Leave distribution alone.
+**Done means a build installed from TestFlight.** Apple Developer Program enrollment is now active, so internal testing is available — up to 100 testers, no beta review, builds live within minutes — and certificates no longer expire every seven days. Prove the signing and distribution pipeline on a trivial build early; those problems are far cheaper to solve before there's a real app attached to them.
 
 The shared foundation matters more than either screen. Both features read the same effort state, and a third consumer — coached audio runs — is coming later. If the two screens end up with parallel implementations of the same concept, the architecture is wrong even if both screens work.
 
@@ -57,6 +57,16 @@ These were learned the hard way in web prototypes that live in this repo. They a
 
 **Your knowledge of Apple's APIs may be stale.** Check current Apple documentation for anything platform-specific rather than relying on recall — SwiftUI and the iOS frameworks move quickly, and a confidently wrong API shape costs more than a lookup.
 
+**Keep observed data separate from anything computed, and never throw the observed data away.** Three categories, and they must stay distinguishable even when they share storage:
+
+- *Observed* — what a sensor actually reported. A location fix, a pedometer sample. Each carries its source, timestamp, unit, and accuracy where the platform provides one.
+- *Derived* — anything a formula produced from observations: pace, smoothed cadence, effort state, step length. Each carries the algorithm version that produced it, plus its inputs and time range.
+- *World state* — anything the app invented for presentation. Not relevant to this build, but don't let it contaminate the other two later.
+
+A derived value must never be presented as a measurement. The reason this matters more here than in a normal fitness app: the product's central claim is that a person's body actually did the work, and that claim is only as strong as the ability to tell what a sensor said apart from what an algorithm guessed. It is also insurance — the effort thresholds in this document come from synthetic data and will be wrong. When the algorithm improves, retained observations let every past session be recomputed. Sessions stored only as summaries are wrong forever.
+
+**Record more than the screen displays.** The current UI needs totals and a live state word. A later replay — spatial or otherwise — needs the full path, per-second cadence, pace and effort state, and the timestamp of every event that fired. Capture all of it from the first run. What the interface renders should never decide what the recorder keeps, because runs recorded thinly can never be enriched retroactively.
+
 ---
 
 ## The data model
@@ -71,10 +81,11 @@ This outlives every client. Version it from the start and treat it as a public f
   "title": "string",
   "author": { "id": "uuid", "display_name": "string" },
   "target_duration_ms": 1800000,
-  "clips": [
+  "events": [
     {
       "id": "string",
       "condition": "start | pace_dropping | pace_surging | halfway | final_stretch | finish",
+      "payload_type": "audio",
       "audio_url": "string",
       "transcript": "string",
       "duration_ms": 4200,
@@ -96,6 +107,12 @@ This outlives every client. Version it from the start and treat it as a public f
 The `type` field takes `run`, `route`, or `event`.
 
 `authored_under` is what makes the embodiment gate auditable rather than merely asserted. It is not decoration.
+
+**Two notes about this schema that are cheap now and expensive later.** Neither is needed for the current build; both are worth honouring if you touch the format.
+
+The list is `events`, not `clips`, and each entry declares a `payload_type`. Right now the only payload is audio, but the same trigger system will later fire other things, and the condition vocabulary is the part that has to stay stable. Once anyone outside this repo authors content against names like `pace_dropping`, they become a public interface that can't be casually renamed — so treat additions as versioned API changes rather than internal refactors.
+
+Separately, a Companion is not a Run. It is a bundle that can *contain* Runs alongside dialogue, a voice set, an avatar, and unlock rules, and it ranges from barebones to elaborate. Runs reference companions; companions package runs. Don't collapse the two.
 
 Calibration already has a shipped schema, `runwith.calibration.v1` — see `calibrate.html`. Real logs in that format may arrive from the web prototype, so stay compatible with it.
 
