@@ -309,6 +309,8 @@ struct GearCheckView: View {
                 : "Indoor mode needs a step counter, which this device does not have."
         case .blocked(.locationNotAuthorized):
             return "Enable Location to start."
+        case .blocked(.sprintNeedsGPS):
+            return "A sprint is timed between GPS-marked lines, so it can't run in Indoor mode."
         case .arm:
             return "GPS is still searching. Tap Start anyway: recording begins by itself when it locks."
         case .startNow, .startOnSteps:
