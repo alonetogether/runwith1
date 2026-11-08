@@ -38,16 +38,16 @@ final class MusicLogger {
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: .MPMusicPlayerControllerNowPlayingItemDidChange,
                                             object: player, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refresh(emit: true) }
+            Task { @MainActor in self?.refresh() }
         })
         observers.append(center.addObserver(forName: .MPMusicPlayerControllerPlaybackStateDidChange,
                                             object: player, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refresh(emit: false) }
+            Task { @MainActor in self?.refresh() }
         })
-        refresh(emit: false)
+        refresh()
     }
 
-    func refresh(emit: Bool) {
+    func refresh() {
         isPlaying = player.playbackState == .playing
         guard let item = player.nowPlayingItem else {
             nowPlaying = nil
@@ -63,21 +63,29 @@ final class MusicLogger {
                             genre: item.genre,
                             durationMs: item.playbackDuration > 0 ? Int(item.playbackDuration * 1000) : nil,
                             bpm: item.beatsPerMinute > 0 ? Double(item.beatsPerMinute) : nil)
-        let changed = np != nowPlaying
         nowPlaying = np
-        if emit, isLogging, changed {
-            onTrack?(np, Date())
-        }
+        logIfNewlyPlaying(np)
+    }
+
+    /// The track logged last. A track is logged the first time it is actually
+    /// playing during the run, so one paused at Start and played later is
+    /// still logged, and pausing and resuming the same track is not a new entry.
+    private var loggedKey: String?
+
+    private func logIfNewlyPlaying(_ np: PlayingTrack) {
+        guard isLogging, isPlaying else { return }
+        let key = np.trackID ?? "\(np.title)|\(np.artist)"
+        guard key != loggedKey else { return }
+        loggedKey = key
+        onTrack?(np, Date())
     }
 
     /// Logs whatever is playing right now, then every change until stopped.
     func startLogging() {
         isLogging = true
+        loggedKey = nil
         beginObserving()
-        refresh(emit: false)
-        if isPlaying, let np = nowPlaying {
-            onTrack?(np, Date())
-        }
+        refresh()
     }
 
     func stopLogging() {

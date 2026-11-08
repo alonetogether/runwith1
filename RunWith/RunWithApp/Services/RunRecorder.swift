@@ -31,6 +31,9 @@ final class RunRecorder {
     private(set) var rejectedFixes = 0
     private(set) var lastRejectReason: RejectReason?
     private(set) var musicCount = 0
+    /// Set when End is confirmed; the run is saved once Spotify's final poll returns.
+    private(set) var isStopping = false
+    private var stopDate: Date?
     private(set) var trace: [CLLocationCoordinate2D] = []
 
     /// An unfinished run left behind by a crash or a force-quit, offered on the gear check.
@@ -209,7 +212,9 @@ final class RunRecorder {
             self?.musicCount = self?.builder?.music.count ?? 0
         }
         spotify.onTrack = { [weak self] track, date in
-            self?.builder?.addMusic(track, source: SpotifyService.sourceName, at: date)
+            // The final poll answers after End; it belongs to the run's last moment.
+            let at = self?.stopDate.map { min($0, date) } ?? date
+            self?.builder?.addMusic(track, source: SpotifyService.sourceName, at: at)
             self?.musicCount = self?.builder?.music.count ?? 0
         }
 
@@ -368,26 +373,35 @@ final class RunRecorder {
     }
 
     func stop(location: LocationService, pedometer: PedometerService, music: MusicLogger, spotify: SpotifyService, store: RunStore) {
-        guard case .running = state, let b = builder else { return }
+        guard case .running = state, builder != nil, !isStopping else { return }
+        let end = Date()
+        isStopping = true
+        stopDate = end
         timer?.invalidate()
         timer = nil
         location.stopRun()
         pedometer.stop()
         music.stopLogging()
-        spotify.stopLogging()
         location.onFix = nil
         pedometer.onSample = nil
         music.onTrack = nil
-        spotify.onTrack = nil
         UIApplication.shared.isIdleTimerDisabled = false
 
-        completeEffort()
-        clearSprint()
-        let run = (builder ?? b).finish(at: Date())
-        store.save(run)
-        checkpoint.close()
-        builder = nil
-        state = .finished(run.id)
+        Task { @MainActor in
+            await spotify.finalPoll()
+            spotify.stopLogging()
+            spotify.onTrack = nil
+            guard let b = builder else { isStopping = false; stopDate = nil; return }
+            completeEffort()
+            clearSprint()
+            let run = (builder ?? b).finish(at: end)
+            store.save(run)
+            checkpoint.close()
+            builder = nil
+            isStopping = false
+            stopDate = nil
+            state = .finished(run.id)
+        }
     }
 
     func reset() {

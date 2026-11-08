@@ -177,20 +177,33 @@ final class SpotifyService: NSObject {
     /// Logs whatever is playing right now, then every change until stopped.
     func startLogging() {
         isLogging = true
+        loggedKey = nil
         beginObserving()
-        Task { await pollOnce(emitCurrent: true) }
+        Task { await pollOnce() }
     }
+
+    /// One last look when the run ends, so a track that came on since the
+    /// last 10 s poll (a final-spurt song) is still logged. Bounded: the run
+    /// is saved after at most a few seconds whatever the network does.
+    func finalPoll() async {
+        guard isLogging else { return }
+        await pollOnce(timeout: 3)
+    }
+
+    /// The track logged last; see `MusicLogger.loggedKey`.
+    private var loggedKey: String?
 
     func stopLogging() {
         isLogging = false
     }
 
-    private func pollOnce(emitCurrent: Bool = false) async {
+    private func pollOnce(timeout: TimeInterval = 15) async {
         guard isConnected else { return }
         do {
             let token = try await refreshIfNeeded()
             var req = URLRequest(url: URL(string: "https://api.spotify.com/v1/me/player/currently-playing?additional_types=track,episode")!)
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.timeoutInterval = timeout
             let (data, resp) = try await URLSession.shared.data(for: req)
             let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
             if status == 204 {               // nothing playing
@@ -221,9 +234,12 @@ final class SpotifyService: NSObject {
             } else {
                 np.genre = nowPlaying?.genre
             }
-            let changed = np != nowPlaying
             nowPlaying = np
-            if isLogging, body.is_playing, changed || emitCurrent {
+            // Logged the first time it is actually playing: a track paused at
+            // Start and played later counts; a pause and resume does not repeat it.
+            let key = np.trackID ?? "\(np.title)|\(np.artist)"
+            if isLogging, body.is_playing, key != loggedKey {
+                loggedKey = key
                 onTrack?(np, Date())
             }
         } catch SpotifyError.notConnected {
