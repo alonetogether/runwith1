@@ -6,13 +6,15 @@ import SwiftUI
 /// this run will capture, and only then enable Start.
 ///
 /// Two modes. Before the first saved run it educates: every source as a row
-/// with what it adds and its own Enable button. Once a run exists it is a
-/// glance: one status strip, the capture line, Start. The strip expands back
-/// into the rows for fixing a denied permission; it never re-explains.
+/// with what it adds and its own Enable button. Once a run exists it is one
+/// invitation: a line about the last run, the intent chips, a large Start and
+/// readiness as one live line that opens the full rows. It never re-explains.
 struct GearCheckView: View {
     @Environment(AppServices.self) private var services
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("indoorMode") private var indoor = false
+    /// The last declared intent, remembered between runs; empty means none.
+    @AppStorage("lastIntent") private var lastIntentRaw = ""
     @State private var showDetails = false
     @State private var confirmDiscard = false
 
@@ -45,33 +47,9 @@ struct GearCheckView: View {
 
             if expanded {
                 detailSection
+                startSection
             } else {
-                glanceSection
-            }
-
-            Section {
-                Text(captureSummary)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Button {
-                    services.recorder.tapStart(indoor: indoor, intent: nil,
-                                               location: services.location, pedometer: services.pedometer,
-                                               music: services.music, spotify: services.spotify,
-                                               store: services.store)
-                } label: {
-                    Text("Start")
-                        .font(.title2.bold())
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canStart)
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                if let startNote {
-                    Text(startNote)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                invitationSection
             }
 
             if isReturning {
@@ -146,32 +124,86 @@ struct GearCheckView: View {
         }
     }
 
-    /// Returning: one strip, one tap to Start.
-    private var glanceSection: some View {
+    private var intent: RunIntent? { RunIntent(rawValue: lastIntentRaw) }
+
+    private var startButton: some View {
+        Button {
+            services.recorder.tapStart(indoor: indoor, intent: intent,
+                                       location: services.location, pedometer: services.pedometer,
+                                       music: services.music, spotify: services.spotify,
+                                       store: services.store)
+        } label: {
+            Text("Start")
+                .font(.title.bold())
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!canStart)
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+    }
+
+    @ViewBuilder
+    private var startNoteRow: some View {
+        if let startNote {
+            Text(startNote)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// First launch: the capture line, the intent chips and Start under the educating rows.
+    private var startSection: some View {
         Section {
-            HStack(spacing: 8) {
-                // Chips keep their natural width and scroll sideways if the row is narrow.
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        StatusChip(status: locationStatus)
-                        StatusChip(status: stepsStatus)
-                        StatusChip(status: musicStatus)
-                        if services.spotify.isConfigured {
-                            StatusChip(status: spotifyStatus)
-                        }
-                    }
-                }
-                Image(systemName: "chevron.right")
-                    .font(.caption.bold())
-                    .foregroundStyle(.tertiary)
+            Text(captureSummary)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            IntentChips(raw: $lastIntentRaw)
+            startButton
+            startNoteRow
+        }
+    }
+
+    /// Returning: one invitation. Descriptive, never graded (Idea Capture §23),
+    /// and the readiness line stays live so a searching GPS is never hidden.
+    private var invitationSection: some View {
+        Section {
+            if let last = services.store.runs.first {
+                Text("Last time: \(last.startedAt.formatted(.dateTime.weekday(.wide))) · \(PaceFormat.kilometres(last.summary.distanceM)) km in \(PaceFormat.elapsed(ms: last.durationMs))")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
-            .contentShape(Rectangle())
-            .onTapGesture { showDetails = true }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isButton)
+            IntentChips(raw: $lastIntentRaw)
+            startButton
+            startNoteRow
+            Button { showDetails = true } label: {
+                HStack {
+                    Text(readinessLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                        .foregroundStyle(.tertiary)
+                }
+            }
             .accessibilityHint("Shows each source in detail.")
             indoorToggle(withCaption: false)
         }
+    }
+
+    /// Every source in one line, e.g. "GPS ✓ · Steps off · Music … · Spotify ✓".
+    private var readinessLine: String {
+        var statuses = [locationStatus, stepsStatus, musicStatus]
+        if services.spotify.isConfigured { statuses.append(spotifyStatus) }
+        return statuses.map { st in
+            switch st.state {
+            case .ok: return "\(st.title) ✓"
+            case .pending: return st.title == "GPS" ? "GPS searching" : "\(st.title) …"
+            case .off: return "\(st.title) off"
+            }
+        }.joined(separator: " · ")
     }
 
     private func indoorToggle(withCaption: Bool) -> some View {
@@ -304,6 +336,36 @@ struct GearCheckView: View {
 }
 
 // MARK: - Pieces
+
+/// Walk · Easy · Push, optional and remembered. A declaration stored with
+/// the run as a self-report; tapping the selected chip clears it.
+struct IntentChips: View {
+    @Binding var raw: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("Today")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(RunIntent.allCases, id: \.self) { intent in
+                let on = raw == intent.rawValue
+                Button {
+                    raw = on ? "" : intent.rawValue
+                } label: {
+                    Text(intent.label)
+                        .font(.callout.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(on ? Color.orange : Color.orange.opacity(0.12), in: Capsule())
+                        .foregroundStyle(on ? Color.white : Color.orange)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
 
 /// One source's readiness, shared by the detailed row and the glance chip.
 struct GearStatus {
