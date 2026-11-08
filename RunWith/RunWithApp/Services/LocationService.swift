@@ -29,6 +29,12 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.activityType = .fitness
         manager.pausesLocationUpdatesAutomatically = false
         authorization = manager.authorizationStatus
+        let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshFreshness() }
+        }
+        timer.tolerance = 0.5
+        RunLoop.main.add(timer, forMode: .common)
+        freshnessTimer = timer
     }
 
     var isAuthorized: Bool {
@@ -39,12 +45,20 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         authorization == .denied || authorization == .restricted
     }
 
-    /// A fix good enough to start on: accurate and recent.
-    var hasFix: Bool {
-        guard let f = latestFix else { return false }
-        return f.horizontalAccuracyM >= 0
-            && f.horizontalAccuracyM <= Self.usableAccuracyM
-            && Date().timeIntervalSince(f.timestamp) < 15
+    /// A fix good enough to start on: accurate and recent. Stored rather than
+    /// computed, and changed only when it flips, so screens re-render when GPS
+    /// is gained or goes stale instead of on a blanket timer that can swallow taps.
+    private(set) var hasFix = false
+    private var freshnessTimer: Timer?
+
+    private func refreshFreshness() {
+        let fresh: Bool = {
+            guard let f = latestFix else { return false }
+            return f.horizontalAccuracyM >= 0
+                && f.horizontalAccuracyM <= Self.usableAccuracyM
+                && Date().timeIntervalSince(f.timestamp) < 15
+        }()
+        if fresh != hasFix { hasFix = fresh }
     }
 
     // MARK: Control
@@ -102,6 +116,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
                 self.latestFix = f
                 self.onFix?(f)
             }
+            self.refreshFreshness()
         }
     }
 

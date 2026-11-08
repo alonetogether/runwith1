@@ -9,7 +9,7 @@ RunWith/
   project.yml            XcodeGen definition → RunWith.xcodeproj
   RunCore/               Platform-agnostic Swift package (no UIKit/CoreLocation)
     Sources/RunCore/
-      Run.swift          The Run object, schema_version 3, snake_case JSON, pace helpers
+      Run.swift          The Run object, schema_version 4, snake_case JSON, pace helpers
       SpeedCleaner.swift GPS cleaning pipeline + RunBuilder (source arbitration, raw streams)
       GPX.swift          GPX 1.1 export and import
       Geo.swift          Haversine
@@ -85,6 +85,17 @@ The app stays in the dashboard's development mode, which is fine for personal us
 - **The diagnostic's first slice: the style call.** `StyleClassifier` (RunCore, deterministic, tested) is the single-run effort-distribution probe from the diagnostic doc §2.1. It trims 5% of distance at each end on runs of 8 min or more, splits the rest into four quarters by distance, measures each quarter as distance over moving time so a stop does not count as a slow quarter, grade-adjusts speeds with the Minetti energy-cost curve when elevation covers 80% of points, and names Front Runner / Pace Chaser / Late Surger / End Closer with the doc's starting thresholds (5% kick, 4% surge, 5% decline). It refuses, with a stated reason, when the run is under 4 min, when all quarters sit within 1.5% of average, when speed came only from the step counter (a belt set the pace), or when no distance accrued. The detail screen shows it under "This time" with the four quarter bars and the footer that one run is weak evidence. Thresholds are unvalidated starting points; tune them on real runs.
 - **One post-run observation: the song line.** `RunInsights` (RunCore, deterministic, tested) ties the music log to the speed curve. It prefers a *pickup*: the minute after a song came on was at least 8% and 0.15 m/s faster than the minute before, never the first song, never after a stop, never when the after-minute descended 3 m more than the before-minute, and only for songs that played 90 s or more. Failing that it names the song playing during the best rolling minute. The detail screen shows it as an observation with a footer saying so, and tags it proxy when the speed came from steps. Nothing else interprets the run.
 - **Indoor mode** is a user toggle that lets Start enable on the step source alone. The recorder tags those points `proxy`. What indoor speed *means* downstream (style classifier returns unclassified on a fixed belt, effort metrics consume the proxy) is the diagnostic's problem and remains the open call in the brief, not something this build resolves.
+
+## Starting, ending and the finish (shared base for all flow variants)
+
+Reviewed by the Fable advisor before building; see the commit history for the plan.
+
+- **Arm to start.** Start works as soon as Location is allowed. Without a fix it arms: location switches to run mode at the tap so a pocketed phone keeps receiving fixes, and recording begins on the first fix within ±30 m, which becomes point 0. The tap time is stored as `armed_at`; fixes while waiting go to the raw stream only, with negative `t_ms`. The arming screen shows elapsed time and current accuracy, and after 90 s offers "Start on steps now", with GPS joining when it finds you (not Indoor, which would tag an outdoor run as proxy). A haptic and the system record sound mark the start. `ArmingPolicy` in RunCore makes the decision and is unit-tested.
+- **Hold to end.** A 1.2 s press-and-hold replaces the confirmation sheet, because the screen stays awake during a run and is live in a pocket. VoiceOver gets an "End run" action with a confirmation.
+- **Finish first.** The run screen leads with distance, time and pace, then the style call, the song line and "How did that feel?", then map and music; capture stats, time waited for GPS, exports and delete fold under Details.
+- **Self-reports (schema v4).** Feel (1–5) and intent (walk, easy, push) are stored under `annotations` as append-only records with `source: "user"`, `fidelity: "reported"` and `recorded_at`. Stored runs change only through `Run.annotated` / `RunStore.annotate`, which cannot touch measured data. "Push" is a declaration, not a benchmark flag; a declared walk makes the style call decline but keeps the song line.
+- **Returning home.** After the first saved run the gear check is one invitation: a descriptive last-run line, the Today chips (Walk, Easy, Push, remembered, optional), a large Start and one live readiness line that opens the full rows. First launch keeps the educating rows.
+- **No blanket refresh timer.** `LocationService` publishes `hasFix` and flips it only when GPS is gained or goes stale, so screens no longer rebuild every two seconds; that rebuild was swallowing button taps.
 
 ## Crash recovery
 

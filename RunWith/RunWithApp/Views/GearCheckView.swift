@@ -24,11 +24,10 @@ struct GearCheckView: View {
     private var expanded: Bool { !isReturning || showDetails }
 
     var body: some View {
-        // Re-render every 2 s so "fix acquired" goes stale honestly if GPS drops.
-        TimelineView(.periodic(from: .now, by: 2)) { _ in
-            content
-        }
-        .navigationTitle("Run With")
+        // No blanket timer: LocationService flips `hasFix` when GPS is gained or
+        // goes stale, and that alone re-renders the readiness line.
+        content
+            .navigationTitle("Run With")
         .onAppear {
             services.location.startWarmup()
             services.music.beginObserving()
