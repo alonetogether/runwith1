@@ -1,3 +1,4 @@
+import AudioToolbox
 import CoreLocation
 import Observation
 import RunCore
@@ -11,6 +12,9 @@ import UIKit
 final class RunRecorder {
     enum State {
         case idle
+        /// Start was tapped without a fix: waiting for the first one that
+        /// passes. No point and no clock exist yet (Diagnostic §6.3).
+        case arming(since: Date)
         case running
         /// The saved run's id. Views read the run from the store, so an
         /// annotation made on the finish screen is never shown stale.
@@ -32,8 +36,15 @@ final class RunRecorder {
     /// An unfinished run left behind by a crash or a force-quit, offered on the gear check.
     private(set) var recovery: RunCheckpoint.Recovered?
 
+    /// Accuracy of the latest fix while arming, so the wait is never a silent state.
+    private(set) var armingAccuracyM: Double?
+
     private var builder: RunBuilder?
     private var timer: Timer?
+    private var armedAt: Date?
+    private var pendingIntent: Reported<RunIntent>?
+    private var preStartFixes: [LocationFix] = []
+    private var sources: (location: LocationService, pedometer: PedometerService, music: MusicLogger, spotify: SpotifyService)?
     private let checkpoint = RunCheckpoint()
     private var lastCheckpointAt = Date.distantPast
     private static let checkpointEvery: TimeInterval = 30
@@ -47,13 +58,78 @@ final class RunRecorder {
         return false
     }
 
-    func start(location: LocationService, pedometer: PedometerService, music: MusicLogger, spotify: SpotifyService,
-               store: RunStore) {
+    /// What Start does, decided by `ArmingPolicy`: record now, arm and wait
+    /// for a fix, record on the step source, or nothing if blocked.
+    func tapStart(indoor: Bool, intent: RunIntent?, location: LocationService, pedometer: PedometerService,
+                  music: MusicLogger, spotify: SpotifyService, store: RunStore) {
         guard case .idle = state else { return }
-        // Starting fresh with a leftover still pending: keep it as its own run
-        // rather than letting the new run's checkpoint overwrite it.
+        let decision = ArmingPolicy.decide(indoor: indoor, locationAuthorized: location.isAuthorized,
+                                           pedometerReady: pedometer.isReady, hasFix: location.hasFix)
+        if case .blocked = decision { return }
+        // A leftover still pending: keep it as its own run before anything else
+        // can write a checkpoint over it.
         if recovery != nil { keepRecovered(store: store) }
-        begin(RunBuilder(startedAt: Date()), location: location, pedometer: pedometer, music: music, spotify: spotify)
+        let now = Date()
+        pendingIntent = intent.map { Reported($0, at: now) }
+        sources = (location, pedometer, music, spotify)
+        switch decision {
+        case .startNow, .startOnSteps:
+            armedAt = nil
+            begin(RunBuilder(startedAt: now, intent: pendingIntent),
+                  location: location, pedometer: pedometer, music: music, spotify: spotify)
+        case .arm:
+            arm(location: location, at: now)
+        case .blocked:
+            break
+        }
+    }
+
+    private func arm(location: LocationService, at now: Date) {
+        armedAt = now
+        preStartFixes = []
+        armingAccuracyM = nil
+        location.onFix = { [weak self] fix in self?.armingFix(fix) }
+        // Run mode at the tap, not at the fix: a phone pocketed while searching
+        // must keep receiving fixes with the screen off.
+        location.startRun()
+        UIApplication.shared.isIdleTimerDisabled = true
+        state = .arming(since: now)
+    }
+
+    private func armingFix(_ fix: LocationFix) {
+        guard case .arming = state, let src = sources else { return }
+        armingAccuracyM = fix.horizontalAccuracyM
+        guard fix.horizontalAccuracyM >= 0, fix.horizontalAccuracyM <= LocationService.usableAccuracyM else {
+            preStartFixes.append(fix)
+            return
+        }
+        // The clock starts at the first passing fix, which becomes point 0.
+        var b = RunBuilder(startedAt: fix.timestamp, armedAt: armedAt, intent: pendingIntent)
+        for f in preStartFixes { b.recordPreStartFix(f) }
+        b.addFix(fix)
+        begin(b, location: src.location, pedometer: src.pedometer, music: src.music, spotify: src.spotify)
+    }
+
+    /// The long-wait fallback: record on the step source now and let GPS take
+    /// over when a fix arrives. Not Indoor, which would tag an outdoor run as proxy.
+    func startOnStepsWhileArming() {
+        guard case .arming = state, let src = sources else { return }
+        var b = RunBuilder(startedAt: Date(), armedAt: armedAt, intent: pendingIntent)
+        for f in preStartFixes { b.recordPreStartFix(f) }
+        begin(b, location: src.location, pedometer: src.pedometer, music: src.music, spotify: src.spotify)
+    }
+
+    func cancelArming() {
+        guard case .arming = state else { return }
+        sources?.location.onFix = nil
+        sources?.location.stopRun()
+        sources?.location.startWarmup()
+        UIApplication.shared.isIdleTimerDisabled = false
+        armedAt = nil
+        pendingIntent = nil
+        preStartFixes = []
+        armingAccuracyM = nil
+        state = .idle
     }
 
     /// Picks the unfinished run back up. GPS starts a fresh segment, so the
@@ -123,9 +199,19 @@ final class RunRecorder {
         }
         UIApplication.shared.isIdleTimerDisabled = true
         state = .running
+        preStartFixes = []
+        armingAccuracyM = nil
         checkpoint.open()
         checkpointNow()
         refreshLive()
+        announceRecording()
+    }
+
+    /// A haptic and the system's record sound, so a pocketed phone tells you it
+    /// started. The screen is kept awake while arming, so both still fire.
+    private func announceRecording() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        AudioServicesPlaySystemSound(1113)
     }
 
     func stop(location: LocationService, pedometer: PedometerService, music: MusicLogger, spotify: SpotifyService, store: RunStore) {

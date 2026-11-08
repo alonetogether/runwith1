@@ -17,6 +17,7 @@
 		75BD73C18FD97293083C6CE8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 56FCBC618B69C0DD27B50FE4 /* Assets.xcassets */; };
 		86BCBBA5BA19E4BFDF5E036B /* RunStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FD6DFF7D03551A9B8C4A16 /* RunStore.swift */; };
 		8E1AC629D79B72F3E698E249 /* RunWithApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F31E0DBCD2CC99262C353A5 /* RunWithApp.swift */; };
+		8FA5467E6E71FFEFF2819C8D /* ArmingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF0DF7FEFEC3FD0528E8A5F6 /* ArmingView.swift */; };
 		AD0E75C14F29582593126A71 /* RunDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6641F84C2E210A4F2F9DF8C9 /* RunDetailView.swift */; };
 		C8627DE66C21BD5C4AAED0C0 /* RunCore in Frameworks */ = {isa = PBXBuildFile; productRef = 51EA9EB13D4C0A4105672D3E /* RunCore */; };
 		DDA3AD08ACB206ADC1FCB6C9 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86339E443C458D267C5F8761 /* LocationService.swift */; };
@@ -37,6 +38,7 @@
 		B452A53B155ACB1B4E59934C /* SpotifyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyService.swift; sourceTree = "<group>"; };
 		D485F635F27DF0E49C6A9681 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		D5B5CA00C49F1C15C2193616 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		DF0DF7FEFEC3FD0528E8A5F6 /* ArmingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArmingView.swift; sourceTree = "<group>"; };
 		E3438C740FB8A24D729EA047 /* RunWith.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = RunWith.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F2D3E4A1A9ACE20A548C3BFE /* RunRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunRecorder.swift; sourceTree = "<group>"; };
 		FA4F1E684F1FA7D80E444871 /* RunCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RunCore; path = RunCore; sourceTree = SOURCE_ROOT; };
@@ -79,6 +81,7 @@
 		67CD792CAF8462D5FD0AA92B /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				DF0DF7FEFEC3FD0528E8A5F6 /* ArmingView.swift */,
 				55E88D22DBCE69D3F9CE3386 /* GearCheckView.swift */,
 				6641F84C2E210A4F2F9DF8C9 /* RunDetailView.swift */,
 				343DA64591FD60974A9F6C87 /* RunningView.swift */,
@@ -192,6 +195,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8FA5467E6E71FFEFF2819C8D /* ArmingView.swift in Sources */,
 				3B287BD22BCCF2FCF3E6853D /* GearCheckView.swift in Sources */,
 				DDA3AD08ACB206ADC1FCB6C9 /* LocationService.swift in Sources */,
 				2FC6D985B7C9E5148B5CE68F /* MusicLogger.swift in Sources */,

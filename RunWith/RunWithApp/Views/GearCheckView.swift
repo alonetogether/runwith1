@@ -54,11 +54,10 @@ struct GearCheckView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Button {
-                    services.recorder.start(location: services.location,
-                                            pedometer: services.pedometer,
-                                            music: services.music,
-                                            spotify: services.spotify,
-                                            store: services.store)
+                    services.recorder.tapStart(indoor: indoor, intent: nil,
+                                               location: services.location, pedometer: services.pedometer,
+                                               music: services.music, spotify: services.spotify,
+                                               store: services.store)
                 } label: {
                     Text("Start")
                         .font(.title2.bold())
@@ -68,8 +67,8 @@ struct GearCheckView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!canStart)
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                if !canStart {
-                    Text(blockerText)
+                if let startNote {
+                    Text(startNote)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -260,18 +259,30 @@ struct GearCheckView: View {
 
     // MARK: Logic
 
-    private var canStart: Bool {
-        services.location.hasFix || (indoor && services.pedometer.isReady)
+    private var startDecision: ArmingPolicy.Decision {
+        ArmingPolicy.decide(indoor: indoor, locationAuthorized: services.location.isAuthorized,
+                            pedometerReady: services.pedometer.isReady, hasFix: services.location.hasFix)
     }
 
-    private var blockerText: String {
-        if indoor {
+    private var canStart: Bool {
+        if case .blocked = startDecision { return false }
+        return true
+    }
+
+    /// The one line under Start: why it is blocked, or what tapping it will do.
+    private var startNote: String? {
+        switch startDecision {
+        case .blocked(.stepsUnavailable):
             return services.pedometer.isAvailable
                 ? "Indoor mode needs the step source. Enable Steps above."
                 : "Indoor mode needs a step counter, which this device does not have."
+        case .blocked(.locationNotAuthorized):
+            return "Enable Location to start."
+        case .arm:
+            return "GPS is still searching. Tap Start anyway: recording begins by itself when it locks."
+        case .startNow, .startOnSteps:
+            return nil
         }
-        if !services.location.isAuthorized { return "Enable Location to start." }
-        return "Start unlocks once GPS has a fix, so the run is not lost to a silent failure."
     }
 
     private var captureSummary: String {

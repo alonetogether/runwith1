@@ -17,6 +17,9 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     static let usableAccuracyM: Double = 30
 
     private let manager = CLLocationManager()
+    /// True between startRun and stopRun, so a permission change cannot drop a
+    /// run (or an armed start) back to foreground-only warm-up.
+    private var isRunMode = false
 
     override init() {
         super.init()
@@ -52,7 +55,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     /// Foreground-only updates so the gear check can show "fix acquired" before Start.
     func startWarmup() {
-        guard isAuthorized else { return }
+        guard isAuthorized, !isRunMode else { return }
         manager.allowsBackgroundLocationUpdates = false
         manager.startUpdatingLocation()
     }
@@ -60,12 +63,14 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// Pocketable: keeps delivering fixes with the screen off (UIBackgroundModes: location).
     func startRun() {
         guard isAuthorized else { return }
+        isRunMode = true
         manager.allowsBackgroundLocationUpdates = true
         manager.showsBackgroundLocationIndicator = true
         manager.startUpdatingLocation()
     }
 
     func stopRun() {
+        isRunMode = false
         manager.allowsBackgroundLocationUpdates = false
         manager.stopUpdatingLocation()
     }
@@ -76,7 +81,9 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         let status = manager.authorizationStatus
         Task { @MainActor in
             self.authorization = status
-            if self.isAuthorized { self.startWarmup() }
+            if self.isAuthorized {
+                if self.isRunMode { self.startRun() } else { self.startWarmup() }
+            }
         }
     }
 

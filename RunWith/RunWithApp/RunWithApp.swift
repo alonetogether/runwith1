@@ -37,6 +37,8 @@ struct ContentView: View {
                 WelcomeView { hasSeenWelcome = true }
             case .idle:
                 GearCheckView()
+            case .arming:
+                ArmingView()
             case .running:
                 RunningView()
             case .finished(let id):
