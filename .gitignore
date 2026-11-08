@@ -1,5 +1,6 @@
 # Build output
 RunWith/build/
+RunWith/build-sim/
 RunWith/RunCore/.build/
 DerivedData/
 xcuserdata/
