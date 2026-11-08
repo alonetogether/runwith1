@@ -46,6 +46,9 @@ public enum StyleClassifier {
         case noDistance
         /// The runner declared a walk. Style calls are for runs.
         case walk
+        /// The run holds a sprint; it gets its own call (SprintStyle), and a
+        /// sprint plus a cool-down jog must not read as a Front Runner.
+        case sprint
     }
 
     public enum Outcome: Equatable, Sendable {
@@ -95,6 +98,9 @@ public enum StyleClassifier {
         // A declared venue, like the treadmill: the register is place, not effort (Idea Capture §25).
         if run.annotations.currentIntent == .walk {
             return Result(outcome: .unclassified(.walk), quarterRatios: [], gradeAdjusted: false)
+        }
+        if run.effort != nil {
+            return Result(outcome: .unclassified(.sprint), quarterRatios: [], gradeAdjusted: false)
         }
         let points = run.points
         guard run.durationMs >= config.minDurationMs, points.count >= config.minPoints else {

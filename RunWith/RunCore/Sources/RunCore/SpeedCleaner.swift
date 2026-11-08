@@ -14,9 +14,14 @@ public struct LocationFix: Codable, Equatable, Sendable {
     public var speedMps: Double?
     public var altitudeM: Double?
     public var verticalAccuracyM: Double?
+    /// The chip's own uncertainty on `speedMps`, in m/s; nil when invalid (v5).
+    public var speedAccuracyMps: Double?
+    /// Direction of travel in degrees from true north; nil when invalid (v5).
+    public var courseDeg: Double?
 
     public init(timestamp: Date, lat: Double, lng: Double, horizontalAccuracyM: Double,
-                speedMps: Double? = nil, altitudeM: Double? = nil, verticalAccuracyM: Double? = nil) {
+                speedMps: Double? = nil, altitudeM: Double? = nil, verticalAccuracyM: Double? = nil,
+                speedAccuracyMps: Double? = nil, courseDeg: Double? = nil) {
         self.timestamp = timestamp
         self.lat = lat
         self.lng = lng
@@ -24,6 +29,8 @@ public struct LocationFix: Codable, Equatable, Sendable {
         self.speedMps = speedMps
         self.altitudeM = altitudeM
         self.verticalAccuracyM = verticalAccuracyM
+        self.speedAccuracyMps = speedAccuracyMps
+        self.courseDeg = courseDeg
     }
 }
 
@@ -209,6 +216,9 @@ public struct RunBuilder: Codable, Sendable {
     public private(set) var armedAt: Date? = nil
     /// The intent the runner declared at Start, if any.
     public private(set) var intent: Reported<RunIntent>? = nil
+    /// A line-to-line maximal effort in progress (sprint mode). Lives on the
+    /// builder so the checkpoint keeps the gate and finish through a crash.
+    public var effort: Effort? = nil
 
     public init(id: UUID = UUID(), startedAt: Date, config: CleanerConfig = CleanerConfig(),
                 armedAt: Date? = nil, intent: Reported<RunIntent>? = nil) {
@@ -245,7 +255,8 @@ public struct RunBuilder: Codable, Sendable {
 
     @discardableResult
     public mutating func addFix(_ fix: LocationFix) -> CleanerVerdict {
-        gpsRaw.append([ms(fix.timestamp), fix.lat, fix.lng, fix.horizontalAccuracyM, fix.speedMps, fix.altitudeM])
+        gpsRaw.append([ms(fix.timestamp), fix.lat, fix.lng, fix.horizontalAccuracyM, fix.speedMps, fix.altitudeM,
+                      fix.speedAccuracyMps, fix.courseDeg])
         let verdict = cleaner.process(fix, cadenceSpm: latestCadenceSpm)
         switch verdict {
         case .accepted(var p):
@@ -270,7 +281,8 @@ public struct RunBuilder: Codable, Sendable {
     /// Keeps a fix that arrived while waiting for GPS to settle, before the
     /// run's clock started: raw stream only (negative `t_ms`), never a point.
     public mutating func recordPreStartFix(_ fix: LocationFix) {
-        gpsRaw.append([ms(fix.timestamp), fix.lat, fix.lng, fix.horizontalAccuracyM, fix.speedMps, fix.altitudeM])
+        gpsRaw.append([ms(fix.timestamp), fix.lat, fix.lng, fix.horizontalAccuracyM, fix.speedMps, fix.altitudeM,
+                      fix.speedAccuracyMps, fix.courseDeg])
     }
 
     /// Always consumes the sample (cadence, raw stream, distance bookkeeping);
@@ -330,7 +342,8 @@ public struct RunBuilder: Codable, Sendable {
         var streams: [String: RawStream] = [:]
         if !gpsRaw.isEmpty {
             streams["gps_fixes"] = RawStream(source: "gps", fidelity: .measured,
-                                             fields: ["t_ms", "lat", "lng", "accuracy_m", "speed_mps", "altitude_m"],
+                                             fields: ["t_ms", "lat", "lng", "accuracy_m", "speed_mps", "altitude_m",
+                                                      "speed_accuracy_mps", "course_deg"],
                                              samples: gpsRaw)
         }
         if !pedRaw.isEmpty {
@@ -342,6 +355,7 @@ public struct RunBuilder: Codable, Sendable {
                    points: points, music: music,
                    summary: RunSummary(distanceM: distanceM, avgSpeedMps: avg, maxSpeedMps: maxSpeedMps, movingTimeMs: movingTimeMs),
                    rawStreams: streams, armedAt: armedAt,
-                   annotations: RunAnnotations(intent: intent.map { [$0] } ?? []))
+                   annotations: RunAnnotations(intent: intent.map { [$0] } ?? []),
+                   effort: effort)
     }
 }

@@ -18,7 +18,7 @@ public enum Fidelity: String, Codable, Sendable {
     case reported
 }
 
-// MARK: - Run object (schema_version 4)
+// MARK: - Run object (schema_version 5)
 
 /// One cleaned, provenance-tagged sample. `speedMps` is the stored truth;
 /// pace is a display transform and is never stored.
@@ -269,8 +269,130 @@ public struct RunAnnotations: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - Measured efforts (schema v5)
+
+/// A value with its provenance spelled out: who produced it, how much to
+/// trust it, and how it was derived when that matters.
+public struct Sourced<Value: Codable & Equatable & Sendable>: Codable, Equatable, Sendable {
+    public var value: Value
+    public var source: String
+    public var fidelity: Fidelity
+    public var method: String?
+
+    public init(_ value: Value, source: String, fidelity: Fidelity, method: String? = nil) {
+        self.value = value
+        self.source = source
+        self.fidelity = fidelity
+        self.method = method
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(value, forKey: .value)
+        try c.encode(source, forKey: .source)
+        try c.encode(fidelity, forKey: .fidelity)
+        try c.encode(method, forKey: .method)
+    }
+
+    enum CodingKeys: String, CodingKey { case value, source, fidelity, method }
+}
+
+/// A position the runner marked by standing on it.
+public struct LinePoint: Codable, Equatable, Sendable {
+    public var lat: Double
+    public var lng: Double
+    public var accuracyM: Double
+
+    public init(lat: Double, lng: Double, accuracyM: Double) {
+        self.lat = lat
+        self.lng = lng
+        self.accuracyM = accuracyM
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case lat, lng
+        case accuracyM = "accuracy_m"
+    }
+}
+
+/// Something that happened during an effort, at a run time. These are the
+/// hooks future Moments attach to (Idea Capture §28): gate_open, to_go_100, finish.
+public struct EffortEvent: Codable, Equatable, Sendable {
+    public var name: String
+    public var tMs: Int
+
+    public init(_ name: String, tMs: Int) {
+        self.name = name
+        self.tMs = tMs
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case tMs = "t_ms"
+    }
+}
+
+/// A gated, line-to-line maximal effort inside a run: the sprint, and later
+/// the datum the speed-duration fit and re-benchmarking need (Diagnostic §2–§3,
+/// Idea Capture §27). Measured, not annotated, with provenance per field.
+public struct Effort: Codable, Equatable, Sendable {
+    /// How it was run. Only "line_to_line" for now.
+    public var protocolName: String
+    /// Target distance in metres: chosen by the runner.
+    public var target: Sourced<Double>
+    /// Gun time: when the app sounded the gate, as run time in ms.
+    public var gate: Sourced<Int>?
+    /// When the runner crossed the finish, as run time in ms, with its method.
+    public var finish: Sourced<Int>?
+    public var startLine: Sourced<LinePoint>?
+    public var finishLine: Sourced<LinePoint>?
+    /// Start and finish are the same line (a lap of a track).
+    public var lap: Bool
+    /// Distance between gate and finish from positions and from Doppler speed.
+    public var distanceGps: Sourced<Double>?
+    public var distanceDoppler: Sourced<Double>?
+    /// First movement after the gate, estimated from speed (±1 s at 1 Hz).
+    public var firstMovement: Sourced<Int>?
+    public var events: [EffortEvent]
+
+    public init(targetM: Double, chosenAt: Date? = nil, startLine: Sourced<LinePoint>? = nil,
+                finishLine: Sourced<LinePoint>? = nil, lap: Bool = false) {
+        protocolName = "line_to_line"
+        target = Sourced(targetM, source: "user", fidelity: .reported)
+        self.startLine = startLine
+        self.finishLine = finishLine
+        self.lap = lap
+        events = []
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case target, gate, finish, lap, events
+        case protocolName = "protocol"
+        case startLine = "start_line"
+        case finishLine = "finish_line"
+        case distanceGps = "distance_gps_m"
+        case distanceDoppler = "distance_doppler_m"
+        case firstMovement = "first_movement_t_ms"
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(protocolName, forKey: .protocolName)
+        try c.encode(target, forKey: .target)
+        try c.encode(gate, forKey: .gate)
+        try c.encode(finish, forKey: .finish)
+        try c.encode(startLine, forKey: .startLine)
+        try c.encode(finishLine, forKey: .finishLine)
+        try c.encode(lap, forKey: .lap)
+        try c.encode(distanceGps, forKey: .distanceGps)
+        try c.encode(distanceDoppler, forKey: .distanceDoppler)
+        try c.encode(firstMovement, forKey: .firstMovement)
+        try c.encode(events, forKey: .events)
+    }
+}
+
 public struct Run: Codable, Identifiable, Equatable, Sendable {
-    public static let currentSchemaVersion = 4
+    public static let currentSchemaVersion = 5
 
     public var id: UUID
     public var schemaVersion: Int
@@ -286,10 +408,13 @@ public struct Run: Codable, Identifiable, Equatable, Sendable {
     public var armedAt: Date?
     /// What the runner said about the run (v4). Empty for older files.
     public var annotations: RunAnnotations
+    /// A sprint or other line-to-line effort inside the run (v5), if any.
+    public var effort: Effort?
 
     public init(id: UUID, schemaVersion: Int = Run.currentSchemaVersion, startedAt: Date, endedAt: Date?,
                 durationMs: Int, points: [RunPoint], music: [MusicEntry], summary: RunSummary,
-                rawStreams: [String: RawStream], armedAt: Date? = nil, annotations: RunAnnotations = RunAnnotations()) {
+                rawStreams: [String: RawStream], armedAt: Date? = nil, annotations: RunAnnotations = RunAnnotations(),
+                effort: Effort? = nil) {
         self.id = id
         self.schemaVersion = schemaVersion
         self.startedAt = startedAt
@@ -301,6 +426,7 @@ public struct Run: Codable, Identifiable, Equatable, Sendable {
         self.rawStreams = rawStreams
         self.armedAt = armedAt
         self.annotations = annotations
+        self.effort = effort
     }
 
     /// The only sanctioned way to change a stored run: annotations in,
@@ -320,7 +446,7 @@ public struct Run: Codable, Identifiable, Equatable, Sendable {
         case startedAt = "started_at"
         case endedAt = "ended_at"
         case durationMs = "duration_ms"
-        case points, music, summary, annotations
+        case points, music, summary, annotations, effort
         case rawStreams = "raw_streams"
         case armedAt = "armed_at"
     }
@@ -338,6 +464,7 @@ public struct Run: Codable, Identifiable, Equatable, Sendable {
         rawStreams = try c.decode([String: RawStream].self, forKey: .rawStreams)
         armedAt = try c.decodeIfPresent(Date.self, forKey: .armedAt)
         annotations = try c.decodeIfPresent(RunAnnotations.self, forKey: .annotations) ?? RunAnnotations()
+        effort = try c.decodeIfPresent(Effort.self, forKey: .effort)
     }
 
     // Explicit nulls, as everywhere else: `"armed_at": null` rather than a missing key.
@@ -354,6 +481,7 @@ public struct Run: Codable, Identifiable, Equatable, Sendable {
         try c.encode(rawStreams, forKey: .rawStreams)
         try c.encode(armedAt, forKey: .armedAt)
         try c.encode(annotations, forKey: .annotations)
+        try c.encode(effort, forKey: .effort)
     }
 }
 

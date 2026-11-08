@@ -340,6 +340,7 @@ struct StyleRow: View {
             case .treadmill: return "Style needs a run where you set your own pace. A treadmill belt sets it for you."
             case .noDistance: return "No distance was recorded, so there are no quarters to compare."
             case .walk: return "You marked this as a walk. Style calls are for runs."
+            case .sprint: return "This run holds a sprint, which gets its own call above."
             }
         }
     }

@@ -11,11 +11,11 @@ final class AnnotationsTests: XCTestCase {
         }
     }
 
-    func testV4EncodesExplicitNullsAndEmptyAnnotations() throws {
+    func testCurrentSchemaEncodesExplicitNullsAndEmptyAnnotations() throws {
         var b = RunBuilder(startedAt: start)
         for f in track(seconds: 3, from: start) { b.addFix(f) }
         let text = String(decoding: try b.finish(at: start.addingTimeInterval(3)).jsonData(), as: UTF8.self)
-        XCTAssertTrue(text.contains("\"schema_version\" : 4"))
+        XCTAssertTrue(text.contains("\"schema_version\" : \(Run.currentSchemaVersion)"))
         XCTAssertTrue(text.contains("\"armed_at\" : null"))
         XCTAssertTrue(text.contains("\"annotations\""))
     }

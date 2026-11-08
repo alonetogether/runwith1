@@ -18,6 +18,8 @@ public enum ArmingPolicy {
     public enum Blocker: Equatable, Sendable {
         case locationNotAuthorized
         case stepsUnavailable
+        /// A sprint is timed between two GPS-marked lines; it cannot run indoors.
+        case sprintNeedsGPS
     }
 
     /// What the arming screen offers after a long wait.
@@ -32,7 +34,13 @@ public enum ArmingPolicy {
 
     public static let fallbackAfter: TimeInterval = 90
 
-    public static func decide(indoor: Bool, locationAuthorized: Bool, pedometerReady: Bool, hasFix: Bool) -> Decision {
+    public static func decide(indoor: Bool, locationAuthorized: Bool, pedometerReady: Bool, hasFix: Bool,
+                              sprint: Bool = false) -> Decision {
+        if sprint {
+            if indoor { return .blocked(.sprintNeedsGPS) }
+            guard locationAuthorized else { return .blocked(.locationNotAuthorized) }
+            return hasFix ? .startNow : .arm
+        }
         if indoor {
             return pedometerReady ? .startOnSteps : .blocked(.stepsUnavailable)
         }
@@ -40,8 +48,10 @@ public enum ArmingPolicy {
         return hasFix ? .startNow : .arm
     }
 
-    public static func fallback(waited: TimeInterval, pedometerReady: Bool) -> Fallback {
+    public static func fallback(waited: TimeInterval, pedometerReady: Bool, sprint: Bool = false) -> Fallback {
         guard waited >= fallbackAfter else { return .none }
+        // Steps cannot time a sprint, so they are never offered for one.
+        if sprint { return .keepWaitingOnly }
         return pedometerReady ? .offerSteps : .keepWaitingOnly
     }
 }
