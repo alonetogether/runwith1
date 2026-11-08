@@ -19,6 +19,16 @@ struct GearCheckView: View {
     @State private var confirmDiscard = false
     @State private var showSprintSetup = false
     @State private var showOtherMusicSource = false
+    /// Run or Sprint. Not remembered: every visit opens on Run, so a
+    /// phone-only run stays one tap from Start.
+    @State private var mode: StartMode = .run
+    @AppStorage("sprintTargetM") private var sprintTargetM: Double = 400
+
+    enum StartMode: String, CaseIterable, Identifiable {
+        case run, sprint
+        var id: String { rawValue }
+        var label: String { self == .run ? "Run" : "Sprint" }
+    }
 
     /// Returning once a run has been saved: the baseline is earned by running,
     /// not by passing a setup.
@@ -153,18 +163,56 @@ struct GearCheckView: View {
         }
     }
 
-    /// Sprint is a protocol, not an intent: its own row, opening setup.
-    private var sprintRow: some View {
-        Button { showSprintSetup = true } label: {
-            HStack {
-                Label("Sprint: time a race between marked lines", systemImage: "stopwatch")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-                Spacer()
-                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+    /// The real choice on this card: an ordinary run, or a sprint timed
+    /// between marked lines. Sprint is a protocol, not an intent.
+    private var modePicker: some View {
+        Picker("Mode", selection: $mode) {
+            ForEach(StartMode.allCases) { Text($0.label).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .listRowSeparator(.hidden)
+    }
+
+    /// Run: the optional feel note. Sprint: the distance, shared with the setup sheet.
+    @ViewBuilder
+    private var modeOptions: some View {
+        switch mode {
+        case .run:
+            FeelChips(raw: $lastIntentRaw)
+        case .sprint:
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("Distance", selection: $sprintTargetM) {
+                    ForEach([100.0, 200, 400, 600, 800, 1000, 1200], id: \.self) { d in
+                        Text("\(Int(d)) m").tag(d)
+                    }
+                }
+                .pickerStyle(.menu)
+                Text("Find a straight or a track. You mark the start line by standing on it, then race to the finish.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
+    }
+
+    @ViewBuilder
+    private var modeAction: some View {
+        switch mode {
+        case .run: startButton
+        case .sprint: sprintSetupButton
+        }
+    }
+
+    private var sprintSetupButton: some View {
+        Button { showSprintSetup = true } label: {
+            Text("Set up sprint")
+                .font(.title.bold())
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.borderedProminent)
         .tint(.orange)
+        .disabled(!canStart)
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
     }
 
     /// First launch: the capture line, the intent chips and Start under the educating rows.
@@ -173,9 +221,9 @@ struct GearCheckView: View {
             Text(captureSummary)
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            IntentChips(raw: $lastIntentRaw)
-            sprintRow
-            startButton
+            modePicker
+            modeOptions
+            modeAction
             startNoteRow
         }
     }
@@ -189,9 +237,9 @@ struct GearCheckView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            IntentChips(raw: $lastIntentRaw)
-            sprintRow
-            startButton
+            modePicker
+            modeOptions
+            modeAction
             startNoteRow
             Button { showDetails = true } label: {
                 HStack {
@@ -327,7 +375,8 @@ struct GearCheckView: View {
 
     private var startDecision: ArmingPolicy.Decision {
         ArmingPolicy.decide(indoor: indoor, locationAuthorized: services.location.isAuthorized,
-                            pedometerReady: services.pedometer.isReady, hasFix: services.location.hasFix)
+                            pedometerReady: services.pedometer.isReady, hasFix: services.location.hasFix,
+                            sprint: mode == .sprint)
     }
 
     private var canStart: Bool {
@@ -346,6 +395,8 @@ struct GearCheckView: View {
             return "Enable Location to start."
         case .blocked(.sprintNeedsGPS):
             return "A sprint is timed between GPS-marked lines, so it can't run in Indoor mode."
+        case .arm where mode == .sprint:
+            return nil  // the setup sheet waits for a fresh fix before marking
         case .arm:
             return "GPS is still searching. Tap Start anyway: recording begins by itself when it locks."
         case .startNow, .startOnSteps:
@@ -373,34 +424,38 @@ struct GearCheckView: View {
 
 // MARK: - Pieces
 
-/// Walk · Easy · Push, optional and remembered. A declaration stored with
-/// the run as a self-report; tapping the selected chip clears it.
-struct IntentChips: View {
+/// Walk · Easy · Push: an optional note on how the run is meant to feel,
+/// stored with the run as a self-report. It changes nothing about recording,
+/// so it is styled as a note, not a mode. Remembered; tap the selected chip to clear.
+struct FeelChips: View {
     @Binding var raw: String
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text("Today")
+        VStack(alignment: .leading, spacing: 6) {
+            Text("How should it feel? Optional")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ForEach(RunIntent.allCases, id: \.self) { intent in
-                let on = raw == intent.rawValue
-                Button {
-                    raw = on ? "" : intent.rawValue
-                } label: {
-                    Text(intent.label)
-                        .font(.callout.weight(.semibold))
-                        .lineLimit(1)
-                        .fixedSize()
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(on ? Color.orange : Color.orange.opacity(0.12), in: Capsule())
-                        .foregroundStyle(on ? Color.white : Color.orange)
+            HStack(spacing: 8) {
+                ForEach(RunIntent.allCases, id: \.self) { intent in
+                    let on = raw == intent.rawValue
+                    Button {
+                        raw = on ? "" : intent.rawValue
+                    } label: {
+                        Text(intent.label)
+                            .font(.subheadline.weight(on ? .semibold : .regular))
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(on ? Color.accentColor.opacity(0.18) : Color(.tertiarySystemFill), in: Capsule())
+                            .overlay(Capsule().strokeBorder(on ? Color.accentColor : .clear, lineWidth: 1))
+                            .foregroundStyle(on ? Color.accentColor : Color.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityAddTraits(on ? .isSelected : [])
                 }
-                .buttonStyle(.borderless)
-                .accessibilityAddTraits(on ? .isSelected : [])
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
         }
     }
 }
