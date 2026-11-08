@@ -9,7 +9,8 @@ RunWith/
   project.yml            XcodeGen definition → RunWith.xcodeproj
   RunCore/               Platform-agnostic Swift package (no UIKit/CoreLocation)
     Sources/RunCore/
-      Run.swift          The Run object, schema_version 4, snake_case JSON, pace helpers
+      Run.swift          The Run object, schema_version 5, snake_case JSON, pace helpers
+      Sprint.swift       Line crossing, sprint splits and the history-gated sprint style call
       SpeedCleaner.swift GPS cleaning pipeline + RunBuilder (source arbitration, raw streams)
       GPX.swift          GPX 1.1 export and import
       Geo.swift          Haversine
@@ -96,6 +97,17 @@ Reviewed by the Fable advisor before building; see the commit history for the pl
 - **Self-reports (schema v4).** Feel (1–5) and intent (walk, easy, push) are stored under `annotations` as append-only records with `source: "user"`, `fidelity: "reported"` and `recorded_at`. Stored runs change only through `Run.annotated` / `RunStore.annotate`, which cannot touch measured data. "Push" is a declaration, not a benchmark flag; a declared walk makes the style call decline but keeps the song line.
 - **Returning home.** After the first saved run the gear check is one invitation: a descriptive last-run line, the Today chips (Walk, Easy, Push, remembered, optional), a large Start and one live readiness line that opens the full rows. First launch keeps the educating rows.
 - **No blanket refresh timer.** `LocationService` publishes `hasFix` and flips it only when GPS is gained or goes stale, so screens no longer rebuild every two seconds; that rebuild was swallowing button taps.
+
+## Sprint mode (line-to-line efforts)
+
+Built to recreate short races, such as a one-minute Japanese sprint, on a straight or a proper track. Design reviewed by the Fable advisor; the noise tests then tightened it.
+
+- **Setup.** The Sprint row on the gear check opens setup: a distance (100 to 1200 m), the start line marked by standing on it, and a finish that is either the same line (a lap), a separately marked line, or a manual tap. GPS distance on a track is off by 5 to 10% in published tests, so the finish is a marked line, never accumulated distance. Sprints need GPS: no Indoor, no start-on-steps fallback.
+- **The race.** Ready starts recording at the line, then a spoken three, two, one, go. Gun time is the moment of "go". The recorder integrates Doppler speed for an approximate "to go" and a "one hundred to go" cue, finishes on crossing the marked line (interpolated between fixes) or on a Finish tap, and keeps recording a cool-down until hold to end.
+- **Stored as an `effort` record (schema v5).** Target (reported), gate (app-measured), finish (estimated, with its method), the marked lines, GPS and Doppler distances, a first-movement estimate, and the events `gate_open`, `to_go_100` and `finish` for future Moments. Raw GPS fixes now carry `speed_accuracy_mps` and `course_deg`. The same record is meant to feed the speed-duration fit and re-benchmarking later.
+- **Analysis (`SprintAnalysis`).** Interpolated 100 m splits from integrated Doppler speed, scaled to the marked distance; top speed; fade as the last split against the fastest split; opening as time to 90% of top speed (stored, not classified, ±1 s). Under 200 m it is a top-speed measurement only. It refuses on GPS gaps over 2 s, fewer than 20 fixes, or no valid Doppler speed. The simulator reports no speed accuracy, so simulator sprints show that refusal; a real iPhone does report it.
+- **Style (`SprintStyle`).** Judged only against the runner's own sprints at the same distance, once there are three: in 400 m research the fittest runners fade most, so a population norm would label fitness. Front Runner means faded more than usual; End Closer means closed harder than usual; Late Surger needs a second-half split at least 4% faster than the best first-half split; otherwise Pace Chaser. δ is 5% or the runner's own spread, whichever is wider. Measured noise: ±0.3 m/s Doppler moves the fade by about 2 to 3 points, so calls near the threshold are not reliable.
+- **The regular style call refuses any run holding a sprint**, so a sprint plus a cool-down jog does not read as a Front Runner.
 
 ## Crash recovery
 

@@ -155,13 +155,28 @@ struct GearCheckView: View {
         }
     }
 
+    /// Sprint is a protocol, not an intent: its own row, opening setup.
+    private var sprintRow: some View {
+        Button { showSprintSetup = true } label: {
+            HStack {
+                Label("Sprint: time a race between marked lines", systemImage: "stopwatch")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+            }
+        }
+        .tint(.orange)
+    }
+
     /// First launch: the capture line, the intent chips and Start under the educating rows.
     private var startSection: some View {
         Section {
             Text(captureSummary)
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            IntentChips(raw: $lastIntentRaw) { showSprintSetup = true }
+            IntentChips(raw: $lastIntentRaw)
+            sprintRow
             startButton
             startNoteRow
         }
@@ -176,7 +191,8 @@ struct GearCheckView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            IntentChips(raw: $lastIntentRaw) { showSprintSetup = true }
+            IntentChips(raw: $lastIntentRaw)
+            sprintRow
             startButton
             startNoteRow
             Button { showDetails = true } label: {
@@ -346,8 +362,6 @@ struct GearCheckView: View {
 /// the run as a self-report; tapping the selected chip clears it.
 struct IntentChips: View {
     @Binding var raw: String
-    /// Opens sprint setup: a protocol, not an intent (the run is stored as Push).
-    var onSprint: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 8) {
@@ -361,6 +375,8 @@ struct IntentChips: View {
                 } label: {
                     Text(intent.label)
                         .font(.callout.weight(.semibold))
+                        .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 14)
                         .padding(.vertical, 6)
                         .background(on ? Color.orange : Color.orange.opacity(0.12), in: Capsule())
@@ -368,18 +384,6 @@ struct IntentChips: View {
                 }
                 .buttonStyle(.borderless)
                 .accessibilityAddTraits(on ? .isSelected : [])
-            }
-            if let onSprint {
-                Button(action: onSprint) {
-                    Label("Sprint", systemImage: "stopwatch")
-                        .font(.callout.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .overlay(Capsule().stroke(Color.orange, lineWidth: 1.5))
-                        .foregroundStyle(Color.orange)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityHint("Sets up a timed sprint between marked lines.")
             }
             Spacer(minLength: 0)
         }

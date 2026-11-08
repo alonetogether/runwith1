@@ -121,6 +121,8 @@ struct SprintSetupView: View {
 
     private var accuracyNote: String {
         guard let f = fix, f.horizontalAccuracyM >= 0 else { return "No GPS signal yet." }
+        // Never present an old position as where you are standing now.
+        guard services.location.hasFix else { return "Waiting for a fresh GPS fix (last was ±\(Int(f.horizontalAccuracyM.rounded())) m)." }
         return "GPS is ±\(Int(f.horizontalAccuracyM.rounded())) m right now."
     }
 
@@ -266,7 +268,9 @@ struct SprintResultSection: View {
         LabeledContent("Top speed",
                        value: String(format: "%.1f m/s · %.0f km/h", res.peakSampleSpeedMps, res.peakSampleSpeedMps * 3.6))
         if let o = res.openingMs {
-            LabeledContent("Opening", value: "90% of top speed by \(Int((Double(o) / 1000).rounded())) s")
+            // Whole seconds only: at one fix per second, finer would be false precision.
+            LabeledContent("Opening", value: o < 1000 ? "90% of top speed in under a second"
+                                                       : "90% of top speed by \(Int((Double(o) / 1000).rounded())) s")
         }
         if let fade = res.fade {
             Text("Your last 100 m held \(Int((fade * 100).rounded()))% of your fastest 100 m.")
