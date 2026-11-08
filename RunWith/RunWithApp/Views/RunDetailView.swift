@@ -2,8 +2,9 @@ import MapKit
 import RunCore
 import SwiftUI
 
-/// Finish screen and history detail. The capture section is the debugging
-/// surface: it says what each source contributed and what was rejected.
+/// Finish screen and history detail. Leads with how the run went and what
+/// it noticed; the capture stats, exports and delete fold under Details.
+/// Reads the run from the store by id, so an annotation shows immediately.
 struct RunDetailView: View {
     @Environment(AppServices.self) private var services
     @Environment(\.dismiss) private var dismiss
@@ -13,41 +14,37 @@ struct RunDetailView: View {
 
     @State private var gpxURL: URL?
     @State private var confirmDelete = false
+    @State private var showDetails = false
+
+    /// The stored copy, which carries any annotation made since this view opened.
+    private var current: Run { services.store.run(run.id) ?? run }
 
     private var coords: [CLLocationCoordinate2D] {
-        run.geoPoints.compactMap { p in
+        current.geoPoints.compactMap { p in
             guard let lat = p.lat, let lng = p.lng else { return nil }
             return CLLocationCoordinate2D(latitude: lat, longitude: lng)
         }
     }
 
     var body: some View {
+        let run = current
+        let style = StyleClassifier.classify(run)
+        let moment = RunInsights.songHighlight(in: run)
+
         List {
             Section {
-                if coords.count >= 2 {
-                    Map {
-                        MapPolyline(coordinates: coords).stroke(.orange, lineWidth: 4)
-                        Marker("Start", systemImage: "flag", coordinate: coords.first!).tint(.green)
-                        Marker("Finish", systemImage: "flag.checkered", coordinate: coords.last!).tint(.red)
-                    }
-                    .mapStyle(.standard(pointsOfInterest: .excludingAll))
-                    .frame(height: 260)
-                    .listRowInsets(EdgeInsets())
-                } else {
-                    Label("No map: this run had no GPS positions.", systemImage: "map")
-                        .foregroundStyle(.secondary)
-                }
+                hero(run)
             }
 
             Section {
-                StyleRow(result: StyleClassifier.classify(run))
+                StyleRow(result: style)
             } header: {
                 Text("This time")
             } footer: {
                 Text("One run is weak evidence. A style is a tendency, and the label only firms up when it recurs across runs.")
             }
 
-            if let moment = RunInsights.songHighlight(in: run) {
+            if let moment {
                 Section {
                     SongMomentRow(moment: moment)
                 } footer: {
@@ -57,25 +54,30 @@ struct RunDetailView: View {
                 }
             }
 
-            Section("Summary") {
-                LabeledContent("Distance", value: "\(PaceFormat.kilometres(run.summary.distanceM)) km")
-                LabeledContent("Duration", value: PaceFormat.elapsed(ms: run.durationMs))
-                LabeledContent("Moving time", value: PaceFormat.elapsed(ms: run.summary.movingTimeMs))
-                LabeledContent("Avg pace", value: "\(PaceFormat.minPerKm(speedMps: run.summary.avgSpeedMps)) /km")
-                LabeledContent("Max speed", value: String(format: "%.1f m/s", run.summary.maxSpeedMps))
-                LabeledContent("Started", value: run.startedAt.formatted(date: .abbreviated, time: .shortened))
+            Section {
+                FeelPicker(selected: run.annotations.currentFeel) { value in
+                    services.store.annotate(run.id) { $0.recordFeel(value, at: Date()) }
+                }
+            } header: {
+                Text("How did that feel?")
+            } footer: {
+                Text("Kept with the run as your own answer, never mixed with what was measured. Change it any time.")
             }
 
-            Section("Capture") {
-                let gps = run.points.filter { $0.source == .gps }.count
-                let ped = run.points.filter { $0.source == .pedometer }.count
-                // Fixes from before the clock started (while waiting for GPS) are not rejections.
-                let rawFixes = run.rawStreams["gps_fixes"]?.samples.filter { ($0.first ?? nil).map { $0 >= 0 } ?? true }.count ?? 0
-                LabeledContent("GPS points (measured)", value: "\(gps)")
-                LabeledContent("Step points (proxy)", value: "\(ped)")
-                LabeledContent("GPS fixes rejected", value: "\(max(0, rawFixes - gps))")
-                LabeledContent("Raw streams", value: run.rawStreams.keys.sorted().joined(separator: ", ").ifEmpty("none"))
-                LabeledContent("Schema", value: "v\(run.schemaVersion)")
+            Section {
+                if coords.count >= 2 {
+                    Map {
+                        MapPolyline(coordinates: coords).stroke(.orange, lineWidth: 4)
+                        Marker("Start", systemImage: "flag", coordinate: coords.first!).tint(.green)
+                        Marker("Finish", systemImage: "flag.checkered", coordinate: coords.last!).tint(.red)
+                    }
+                    .mapStyle(.standard(pointsOfInterest: .excludingAll))
+                    .frame(height: 240)
+                    .listRowInsets(EdgeInsets())
+                } else {
+                    Label("No map: this run had no GPS positions.", systemImage: "map")
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if !run.music.isEmpty {
@@ -97,20 +99,9 @@ struct RunDetailView: View {
                 }
             }
 
-            Section("Export") {
-                ShareLink(item: services.store.jsonURL(for: run)) {
-                    Label("Export JSON (Run object)", systemImage: "doc.text")
-                }
-                if let gpxURL {
-                    ShareLink(item: gpxURL) {
-                        Label("Export GPX", systemImage: "map")
-                    }
-                }
-            }
-
-            if !isFresh {
-                Section {
-                    Button("Delete run", role: .destructive) { confirmDelete = true }
+            Section {
+                DisclosureGroup("Details", isExpanded: $showDetails) {
+                    details(run)
                 }
             }
         }
@@ -124,13 +115,124 @@ struct RunDetailView: View {
             }
         }
         .navigationBarBackButtonHidden(isFresh)
-        .task { gpxURL = try? services.store.gpxURL(for: run) }
+        .task { gpxURL = try? services.store.gpxURL(for: current) }
         .confirmationDialog("Delete this run?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
-                services.store.delete(run)
+                services.store.delete(current)
                 dismiss()
             }
+        } message: {
+            Text("This can't be undone.")
         }
+    }
+
+    // MARK: Pieces
+
+    private func hero(_ run: Run) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(PaceFormat.kilometres(run.summary.distanceM))
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                Text("km").font(.title3).foregroundStyle(.secondary)
+                Spacer()
+                if let intent = run.annotations.currentIntent {
+                    Text(intent.label)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 9).padding(.vertical, 3)
+                        .background(Color.orange.opacity(0.15), in: Capsule())
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel("You marked this as \(intent.label)")
+                }
+            }
+            HStack(spacing: 18) {
+                Label { Text(PaceFormat.elapsed(ms: run.durationMs)) } icon: {
+                    Image(systemName: "clock").foregroundStyle(.secondary)
+                }
+                Label { Text("\(PaceFormat.minPerKm(speedMps: run.summary.avgSpeedMps)) /km") } icon: {
+                    Image(systemName: "speedometer").foregroundStyle(.secondary)
+                }
+            }
+            .font(.callout.monospacedDigit())
+            Text(run.startedAt.formatted(date: .complete, time: .shortened))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func details(_ run: Run) -> some View {
+        LabeledContent("Moving time", value: PaceFormat.elapsed(ms: run.summary.movingTimeMs))
+        LabeledContent("Max speed", value: String(format: "%.1f m/s", run.summary.maxSpeedMps))
+        if let armed = run.armedAt {
+            LabeledContent("Waited for GPS", value: PaceFormat.elapsed(ms: Int(run.startedAt.timeIntervalSince(armed) * 1000)))
+        }
+        let gps = run.points.filter { $0.source == .gps }.count
+        let ped = run.points.filter { $0.source == .pedometer }.count
+        // Fixes from before the clock started (while waiting for GPS) are not rejections.
+        let rawFixes = run.rawStreams["gps_fixes"]?.samples.filter { ($0.first ?? nil).map { $0 >= 0 } ?? true }.count ?? 0
+        LabeledContent("GPS points (measured)", value: "\(gps)")
+        LabeledContent("Step points (proxy)", value: "\(ped)")
+        LabeledContent("GPS fixes rejected", value: "\(max(0, rawFixes - gps))")
+        LabeledContent("Raw streams", value: run.rawStreams.keys.sorted().joined(separator: ", ").ifEmpty("none"))
+        LabeledContent("Schema", value: "v\(run.schemaVersion)")
+        ShareLink(item: services.store.jsonURL(for: run)) {
+            Label("Export JSON (Run object)", systemImage: "doc.text")
+        }
+        if let gpxURL {
+            ShareLink(item: gpxURL) {
+                Label("Export GPX", systemImage: "map")
+            }
+        }
+        if !isFresh {
+            Button("Delete run", role: .destructive) { confirmDelete = true }
+        }
+    }
+}
+
+extension RunIntent {
+    var label: String {
+        switch self {
+        case .walk: return "Walk"
+        case .easy: return "Easy"
+        case .push: return "Push"
+        }
+    }
+}
+
+/// Five taps from rough to great. Each answer is appended, never overwritten.
+struct FeelPicker: View {
+    let selected: Int?
+    let onPick: (Int) -> Void
+
+    private let words = [1: "Rough", 2: "Hard", 3: "Okay", 4: "Good", 5: "Great"]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(1...5, id: \.self) { value in
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onPick(value)
+                } label: {
+                    VStack(spacing: 4) {
+                        Text("\(value)")
+                            .font(.headline)
+                            .frame(width: 40, height: 40)
+                            .background(Circle().fill(value == selected ? Color.orange : Color.secondary.opacity(0.12)))
+                            .foregroundStyle(value == selected ? Color.white : Color.primary)
+                        Text(words[value] ?? "")
+                            .font(.caption2)
+                            .foregroundStyle(value == selected ? Color.primary : Color.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("\(words[value] ?? ""), \(value) of 5")
+                .accessibilityAddTraits(value == selected ? .isSelected : [])
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

@@ -29,6 +29,8 @@ final class AnnotationsTests: XCTestCase {
         let run = try Run.fromJSON(Data(v3.utf8))
         XCTAssertEqual(run.annotations, RunAnnotations())
         XCTAssertNil(run.armedAt)
+        // Annotating re-saves in the current format, so the version follows.
+        XCTAssertEqual(run.annotated { $0.recordFeel(3, at: Date()) }.schemaVersion, Run.currentSchemaVersion)
     }
 
     func testAnnotationsCarryProvenanceAndAreAppendOnly() throws {

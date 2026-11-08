@@ -305,9 +305,12 @@ public struct Run: Codable, Identifiable, Equatable, Sendable {
 
     /// The only sanctioned way to change a stored run: annotations in,
     /// everything measured untouched by construction.
+    /// Re-saving writes the whole file in the current format, so the version
+    /// is bumped to match; the measured data itself is untouched.
     public func annotated(_ change: (inout RunAnnotations) -> Void) -> Run {
         var copy = self
         change(&copy.annotations)
+        copy.schemaVersion = max(copy.schemaVersion, Run.currentSchemaVersion)
         return copy
     }
 
