@@ -1,0 +1,110 @@
+import CoreLocation
+import Observation
+import RunCore
+
+/// Thin CoreLocation wrapper. Converts CLLocation into the platform-agnostic
+/// `LocationFix` and hands it to whoever is listening (the recorder).
+@MainActor
+@Observable
+final class LocationService: NSObject, CLLocationManagerDelegate {
+    private(set) var authorization: CLAuthorizationStatus = .notDetermined
+    private(set) var latestFix: LocationFix?
+    private(set) var lastError: String?
+    /// Set by the recorder for the duration of a run.
+    var onFix: ((LocationFix) -> Void)?
+
+    /// Fixes worse than this never count as "GPS acquired" on the gear check.
+    static let usableAccuracyM: Double = 30
+
+    private let manager = CLLocationManager()
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+        manager.distanceFilter = kCLDistanceFilterNone
+        manager.activityType = .fitness
+        manager.pausesLocationUpdatesAutomatically = false
+        authorization = manager.authorizationStatus
+    }
+
+    var isAuthorized: Bool {
+        authorization == .authorizedWhenInUse || authorization == .authorizedAlways
+    }
+
+    var isDenied: Bool {
+        authorization == .denied || authorization == .restricted
+    }
+
+    /// A fix good enough to start on: accurate and recent.
+    var hasFix: Bool {
+        guard let f = latestFix else { return false }
+        return f.horizontalAccuracyM >= 0
+            && f.horizontalAccuracyM <= Self.usableAccuracyM
+            && Date().timeIntervalSince(f.timestamp) < 15
+    }
+
+    // MARK: Control
+
+    func requestPermission() {
+        manager.requestWhenInUseAuthorization()
+    }
+
+    /// Foreground-only updates so the gear check can show "fix acquired" before Start.
+    func startWarmup() {
+        guard isAuthorized else { return }
+        manager.allowsBackgroundLocationUpdates = false
+        manager.startUpdatingLocation()
+    }
+
+    /// Pocketable: keeps delivering fixes with the screen off (UIBackgroundModes: location).
+    func startRun() {
+        guard isAuthorized else { return }
+        manager.allowsBackgroundLocationUpdates = true
+        manager.showsBackgroundLocationIndicator = true
+        manager.startUpdatingLocation()
+    }
+
+    func stopRun() {
+        manager.allowsBackgroundLocationUpdates = false
+        manager.stopUpdatingLocation()
+    }
+
+    // MARK: CLLocationManagerDelegate
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        Task { @MainActor in
+            self.authorization = status
+            if self.isAuthorized { self.startWarmup() }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        let fixes = locations.map { l in
+            LocationFix(timestamp: l.timestamp,
+                        lat: l.coordinate.latitude,
+                        lng: l.coordinate.longitude,
+                        horizontalAccuracyM: l.horizontalAccuracy,
+                        speedMps: l.speed >= 0 ? l.speed : nil,
+                        altitudeM: l.verticalAccuracy >= 0 ? l.altitude : nil,
+                        verticalAccuracyM: l.verticalAccuracy)
+        }
+        Task { @MainActor in
+            for f in fixes {
+                self.latestFix = f
+                self.onFix?(f)
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        let message: String
+        switch (error as? CLError)?.code {
+        case .locationUnknown: message = "no GPS signal yet"
+        case .denied: message = "location access denied"
+        default: message = error.localizedDescription
+        }
+        Task { @MainActor in self.lastError = message }
+    }
+}

@@ -1,0 +1,18 @@
+# Build output
+RunWith/build/
+RunWith/RunCore/.build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.DS_Store
+
+# Licensed character assets stay on Thomas's machine and out of history
+# (CC-BY Sketchfab model, Mixamo clips, UmaViewer source). See README Credits.
+/*.zip
+/*.glb
+/*.usdz
+RunWith/Companion/*.glb
+RunWith/Tools/mixamo/
+
+# Local Claude settings (skills are versioned)
+.claude/settings.local.json
