@@ -87,18 +87,7 @@ struct RunDetailView: View {
             if !run.music.isEmpty {
                 Section("Music") {
                     ForEach(Array(run.music.enumerated()), id: \.offset) { _, entry in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(entry.title)
-                                Text([entry.artist, entry.genre, entry.bpm.map { "\(Int($0.rounded())) BPM" }]
-                                        .compactMap { $0 }.joined(separator: " · "))
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text(PaceFormat.elapsed(ms: entry.t))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
+                        MusicRow(entry: entry)
                     }
                 }
             }
@@ -386,5 +375,71 @@ private struct QuarterBars: View {
         }
         .frame(height: 44, alignment: .bottom)
         .accessibilityLabel("Quarter speeds relative to average: " + ratios.map { String(format: "%.0f%%", $0 * 100) }.joined(separator: ", "))
+    }
+}
+
+// MARK: - Music row
+
+/// One song: cover, what it was, and how much of it played. Play time is
+/// shown as a fact ("2:10 of 3:40"), never as a listened/skipped label.
+struct MusicRow: View {
+    let entry: MusicEntry
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ArtworkThumb(entry: entry)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.title).lineLimit(1)
+                Text([entry.artist, entry.genre, entry.bpm.map { "\(Int($0.rounded())) BPM" }]
+                        .compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let played = playedLine {
+                    Text(played).font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+            Spacer(minLength: 8)
+            Text(PaceFormat.elapsed(ms: max(0, entry.startedT ?? entry.t)))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// "Played 2:10 of 3:40", "~" when the times are Spotify estimates.
+    private var playedLine: String? {
+        guard let played = entry.playedMs else { return nil }
+        let approx = entry.timingFidelity == .estimated ? "~" : ""
+        let of = entry.durationMs.map { " of \(PaceFormat.elapsed(ms: $0))" } ?? ""
+        return "Played \(approx)\(PaceFormat.elapsed(ms: played))\(of)"
+    }
+}
+
+/// Spotify covers load from the stored link; Apple Music covers come from the
+/// on-device cache; anything else, or a link gone stale, shows a note glyph.
+struct ArtworkThumb: View {
+    let entry: MusicEntry
+    private let side: CGFloat = 40
+
+    var body: some View {
+        Group {
+            if let link = entry.artworkURL, let url = URL(string: link) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() } else { placeholder }
+                }
+            } else if let album = entry.albumID, let image = ArtworkCache.image(source: entry.source, albumID: album) {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .accessibilityHidden(true)
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            Color(.tertiarySystemFill)
+            Image(systemName: "music.note").foregroundStyle(.secondary)
+        }
     }
 }

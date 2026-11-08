@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0DFB73C52FA730C07BB80E62 /* ArtworkCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1221E59F72931EA47EDF06E9 /* ArtworkCache.swift */; };
 		158D6C47C9CF20F76B01556E /* RunRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2D3E4A1A9ACE20A548C3BFE /* RunRecorder.swift */; };
 		2FC6D985B7C9E5148B5CE68F /* MusicLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73F9594D8A4E741D5E31499E /* MusicLogger.swift */; };
 		3B287BD22BCCF2FCF3E6853D /* GearCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E88D22DBCE69D3F9CE3386 /* GearCheckView.swift */; };
@@ -28,6 +29,7 @@
 
 /* Begin PBXFileReference section */
 		00B5A67F45CCB6F2876FD6E2 /* SprintViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SprintViews.swift; sourceTree = "<group>"; };
+		1221E59F72931EA47EDF06E9 /* ArtworkCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkCache.swift; sourceTree = "<group>"; };
 		343DA64591FD60974A9F6C87 /* RunningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningView.swift; sourceTree = "<group>"; };
 		4F31E0DBCD2CC99262C353A5 /* RunWithApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunWithApp.swift; sourceTree = "<group>"; };
 		55A8EC5FDF8187F46DA489F8 /* RunCheckpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCheckpoint.swift; sourceTree = "<group>"; };
@@ -72,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				738B76194291972063F1A056 /* Announcer.swift */,
+				1221E59F72931EA47EDF06E9 /* ArtworkCache.swift */,
 				86339E443C458D267C5F8761 /* LocationService.swift */,
 				73F9594D8A4E741D5E31499E /* MusicLogger.swift */,
 				8CE1813F8D31DEDFFDEB0ECE /* PedometerService.swift */,
@@ -203,6 +206,7 @@
 			files = (
 				60BB60D73A05ADBA350A26F5 /* Announcer.swift in Sources */,
 				8FA5467E6E71FFEFF2819C8D /* ArmingView.swift in Sources */,
+				0DFB73C52FA730C07BB80E62 /* ArtworkCache.swift in Sources */,
 				3B287BD22BCCF2FCF3E6853D /* GearCheckView.swift in Sources */,
 				DDA3AD08ACB206ADC1FCB6C9 /* LocationService.swift in Sources */,
 				2FC6D985B7C9E5148B5CE68F /* MusicLogger.swift in Sources */,

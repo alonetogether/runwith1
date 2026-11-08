@@ -18,7 +18,7 @@ public enum Fidelity: String, Codable, Sendable {
     case reported
 }
 
-// MARK: - Run object (schema_version 5)
+// MARK: - Run object (schema_version 6)
 
 /// One cleaned, provenance-tagged sample. `speedMps` is the stored truth;
 /// pace is a display transform and is never stored.
@@ -103,6 +103,34 @@ public struct MusicEntry: Codable, Equatable, Sendable {
     public var durationMs: Int?
     public var bpm: Double?
 
+    // Schema v6: how the song was played, derived from raw sightings, and
+    // artwork pointers. All optional: null means unknown, never zero, and
+    // entries from v2–v5 files decode with every one of these nil.
+
+    /// Estimated run time the track began (`t` minus its progress at first
+    /// sight). Negative when it was already playing at Start. `t` keeps its
+    /// old meaning: the moment the app first saw the track.
+    public var startedT: Int?
+    /// When it stopped being the current track, or the run ended.
+    public var endedT: Int?
+    /// Time audibly playing inside the run; playback pauses excluded. A fact,
+    /// not a verdict: whether that counts as "listened" is decided later.
+    public var playedMs: Int?
+    /// How the song stopped being current.
+    public var end: MusicEnd?
+    /// One fidelity and method for all of this entry's times, since they share
+    /// one connector: Spotify polls are estimates, Apple Music is local.
+    public var timingFidelity: Fidelity?
+    public var timingMethod: String?
+    /// A pointer to cover art (Spotify), never the image itself.
+    public var artworkURL: String?
+    public var albumID: String?
+    public var artistID: String?
+    /// Raw song-position sightings, so every derived field above can be
+    /// recomputed if the estimator changes, and run time maps to song time
+    /// through seeks.
+    public var sightings: [MusicSighting]?
+
     public init(t: Int, title: String, artist: String, source: String,
                 album: String? = nil, isrc: String? = nil, trackID: String? = nil,
                 genre: String? = nil, durationMs: Int? = nil, bpm: Double? = nil) {
@@ -122,12 +150,23 @@ public struct MusicEntry: Codable, Equatable, Sendable {
         self.init(t: t, title: track.title, artist: track.artist, source: source, album: track.album,
                   isrc: track.isrc, trackID: track.trackID, genre: track.genre,
                   durationMs: track.durationMs, bpm: track.bpm)
+        artworkURL = track.artworkURL
+        albumID = track.albumID
+        artistID = track.artistID
     }
 
     enum CodingKeys: String, CodingKey {
-        case t, title, artist, source, album, isrc, genre, bpm
+        case t, title, artist, source, album, isrc, genre, bpm, end, sightings
         case trackID = "track_id"
         case durationMs = "duration_ms"
+        case startedT = "started_t"
+        case endedT = "ended_t"
+        case playedMs = "played_ms"
+        case timingFidelity = "timing_fidelity"
+        case timingMethod = "timing_method"
+        case artworkURL = "artwork_url"
+        case albumID = "album_id"
+        case artistID = "artist_id"
     }
 
     // Explicit nulls, as for points: an unknown genre reads `"genre": null`.
@@ -143,6 +182,16 @@ public struct MusicEntry: Codable, Equatable, Sendable {
         try c.encode(genre, forKey: .genre)
         try c.encode(durationMs, forKey: .durationMs)
         try c.encode(bpm, forKey: .bpm)
+        try c.encode(startedT, forKey: .startedT)
+        try c.encode(endedT, forKey: .endedT)
+        try c.encode(playedMs, forKey: .playedMs)
+        try c.encode(end, forKey: .end)
+        try c.encode(timingFidelity, forKey: .timingFidelity)
+        try c.encode(timingMethod, forKey: .timingMethod)
+        try c.encode(artworkURL, forKey: .artworkURL)
+        try c.encode(albumID, forKey: .albumID)
+        try c.encode(artistID, forKey: .artistID)
+        try c.encode(sightings, forKey: .sightings)
     }
 }
 
@@ -157,9 +206,16 @@ public struct PlayingTrack: Equatable, Sendable {
     public var genre: String?
     public var durationMs: Int?
     public var bpm: Double?
+    public var artworkURL: String?
+    public var albumID: String?
+    public var artistID: String?
 
     public init(title: String, artist: String, album: String? = nil, isrc: String? = nil, trackID: String? = nil,
-                genre: String? = nil, durationMs: Int? = nil, bpm: Double? = nil) {
+                genre: String? = nil, durationMs: Int? = nil, bpm: Double? = nil,
+                artworkURL: String? = nil, albumID: String? = nil, artistID: String? = nil) {
+        self.artworkURL = artworkURL
+        self.albumID = albumID
+        self.artistID = artistID
         self.title = title
         self.artist = artist
         self.album = album
@@ -392,7 +448,7 @@ public struct Effort: Codable, Equatable, Sendable {
 }
 
 public struct Run: Codable, Identifiable, Equatable, Sendable {
-    public static let currentSchemaVersion = 5
+    public static let currentSchemaVersion = 6
 
     public var id: UUID
     public var schemaVersion: Int

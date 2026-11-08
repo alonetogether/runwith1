@@ -207,15 +207,11 @@ final class RunRecorder {
 
         location.onFix = { [weak self] fix in self?.ingest(fix) }
         pedometer.onSample = { [weak self] sample in self?.ingest(sample) }
-        music.onTrack = { [weak self] track, date in
-            self?.builder?.addMusic(track, source: MusicLogger.sourceName, at: date)
-            self?.musicCount = self?.builder?.music.count ?? 0
+        music.onObservation = { [weak self] obs, date in
+            self?.observeMusic(obs, source: MusicLogger.sourceName, timing: MusicLogger.timing, at: date)
         }
-        spotify.onTrack = { [weak self] track, date in
-            // The final poll answers after End; it belongs to the run's last moment.
-            let at = self?.stopDate.map { min($0, date) } ?? date
-            self?.builder?.addMusic(track, source: SpotifyService.sourceName, at: at)
-            self?.musicCount = self?.builder?.music.count ?? 0
+        spotify.onObservation = { [weak self] obs, date in
+            self?.observeMusic(obs, source: SpotifyService.sourceName, timing: SpotifyService.timing, at: date)
         }
 
         location.startRun()
@@ -384,13 +380,13 @@ final class RunRecorder {
         music.stopLogging()
         location.onFix = nil
         pedometer.onSample = nil
-        music.onTrack = nil
+        music.onObservation = nil
         UIApplication.shared.isIdleTimerDisabled = false
 
         Task { @MainActor in
             await spotify.finalPoll()
             spotify.stopLogging()
-            spotify.onTrack = nil
+            spotify.onObservation = nil
             guard let b = builder else { isStopping = false; stopDate = nil; return }
             completeEffort()
             clearSprint()
@@ -402,6 +398,23 @@ final class RunRecorder {
             stopDate = nil
             state = .finished(run.id)
         }
+    }
+
+    /// Hands one look at a player to the builder. Spotify's final poll answers
+    /// after End: it is placed at the run's last moment, its position wound
+    /// back by the same amount so the song's estimated start stays right.
+    private func observeMusic(_ obs: MusicObservation, source: String, timing: MusicTiming, at date: Date) {
+        var obs = obs
+        var at = date
+        if let stop = stopDate, date > stop {
+            let late = Int(date.timeIntervalSince(stop) * 1000)
+            if case .track(let track, let p?, true) = obs {
+                obs = .track(track, progressMs: max(0, p - late), playing: true)
+            }
+            at = stop
+        }
+        builder?.observeMusic(obs, source: source, timing: timing, at: at)
+        musicCount = builder?.music.count ?? 0
     }
 
     func reset() {

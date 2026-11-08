@@ -219,6 +219,10 @@ public struct RunBuilder: Codable, Sendable {
     /// A line-to-line maximal effort in progress (sprint mode). Lives on the
     /// builder so the checkpoint keeps the gate and finish through a crash.
     public var effort: Effort? = nil
+    /// Schema v6 music log: the index of each source's open entry. Optional
+    /// with a nil default so checkpoints from older builds still decode; a
+    /// non-optional here would make recovery silently discard the run.
+    var musicOpen: [String: Int]? = nil
 
     public init(id: UUID = UUID(), startedAt: Date, config: CleanerConfig = CleanerConfig(),
                 armedAt: Date? = nil, intent: Reported<RunIntent>? = nil) {
@@ -238,6 +242,7 @@ public struct RunBuilder: Codable, Sendable {
     public mutating func resumeAfterGap() {
         cleaner.forgetLastFix()
         lastGPSAcceptedAt = nil
+        closeMusicForGap()
     }
 
     /// Which source is currently producing the speed/distance series, if any.
@@ -251,6 +256,17 @@ public struct RunBuilder: Codable, Sendable {
 
     private func ms(_ date: Date) -> Double {
         (date.timeIntervalSince(startedAt) * 1000).rounded()
+    }
+
+    func runTimeMs(_ date: Date) -> Int { Int(ms(date)) }
+
+    // Music log mutation lives here because `music` is private(set) to this file.
+    mutating func appendMusic(_ e: MusicEntry) { music.append(e) }
+    mutating func appendSighting(_ s: MusicSighting, to i: Int) {
+        music[i].sightings = (music[i].sightings ?? []) + [s]
+    }
+    mutating func closeMusic(at i: Int, closeT: Int, cause: MusicLog.Cause) {
+        MusicLog.close(&music[i], at: closeT, cause: cause)
     }
 
     @discardableResult
@@ -352,7 +368,7 @@ public struct RunBuilder: Codable, Sendable {
                                              samples: pedRaw)
         }
         return Run(id: id, startedAt: startedAt, endedAt: end, durationMs: durationMs,
-                   points: points, music: music,
+                   points: points, music: musicClosed(atRunMs: durationMs),
                    summary: RunSummary(distanceM: distanceM, avgSpeedMps: avg, maxSpeedMps: maxSpeedMps, movingTimeMs: movingTimeMs),
                    rawStreams: streams, armedAt: armedAt,
                    annotations: RunAnnotations(intent: intent.map { [$0] } ?? []),

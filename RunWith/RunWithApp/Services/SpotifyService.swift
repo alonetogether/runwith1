@@ -28,8 +28,11 @@ final class SpotifyService: NSObject {
     private(set) var nowPlaying: PlayingTrack?
     private(set) var isPlaying = false
     private(set) var lastError: String?
-    /// Set by the recorder for the duration of a run: (track, when).
-    var onTrack: ((PlayingTrack, Date) -> Void)?
+    /// Set by the recorder for the duration of a run: every poll's answer,
+    /// with the moment it was received.
+    var onObservation: ((MusicObservation, Date) -> Void)?
+    /// Polled every 10 s; start and end are estimated from the reported position.
+    static let timing = MusicTiming(fidelity: .estimated, method: "spotify_poll_10s_progress")
     /// Artist id → first listed genre, so each artist costs one lookup per launch.
     private var genreCache: [String: String?] = [:]
 
@@ -177,7 +180,6 @@ final class SpotifyService: NSObject {
     /// Logs whatever is playing right now, then every change until stopped.
     func startLogging() {
         isLogging = true
-        loggedKey = nil
         beginObserving()
         Task { await pollOnce() }
     }
@@ -189,9 +191,6 @@ final class SpotifyService: NSObject {
         guard isLogging else { return }
         await pollOnce(timeout: 3)
     }
-
-    /// The track logged last; see `MusicLogger.loggedKey`.
-    private var loggedKey: String?
 
     func stopLogging() {
         isLogging = false
@@ -205,11 +204,14 @@ final class SpotifyService: NSObject {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             req.timeoutInterval = timeout
             let (data, resp) = try await URLSession.shared.data(for: req)
+            // Stamped on receipt: the genre lookup below must not age the position.
+            let seenAt = Date()
             let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
             if status == 204 {               // nothing playing
                 isPlaying = false
                 nowPlaying = nil
                 lastError = nil
+                if isLogging { onObservation?(.nothingPlaying, seenAt) }
                 return
             }
             guard status == 200 else { throw SpotifyError.http(status, "") }
@@ -218,6 +220,7 @@ final class SpotifyService: NSObject {
             lastError = nil
             guard let item = body.item else {   // an ad, or a private session
                 nowPlaying = nil
+                if isLogging { onObservation?(.unknown, seenAt) }
                 return
             }
             var np = PlayingTrack(title: item.name,
@@ -227,7 +230,10 @@ final class SpotifyService: NSObject {
                                 trackID: item.id,
                                 genre: nil,
                                 durationMs: item.duration_ms,
-                                bpm: nil)   // Spotify closed audio features to new apps; BPM comes from elsewhere later
+                                bpm: nil,   // Spotify closed audio features to new apps; BPM comes from elsewhere later
+                                artworkURL: Self.artwork(item.album?.images ?? item.show?.images),
+                                albumID: item.album?.id ?? item.show?.id,
+                                artistID: item.artists?.first?.id)
             let isNewTrack = np.trackID != nowPlaying?.trackID
             if isNewTrack, let artistID = item.artists?.first?.id {
                 np.genre = await genre(forArtist: artistID, token: token)
@@ -235,12 +241,9 @@ final class SpotifyService: NSObject {
                 np.genre = nowPlaying?.genre
             }
             nowPlaying = np
-            // Logged the first time it is actually playing: a track paused at
-            // Start and played later counts; a pause and resume does not repeat it.
-            let key = np.trackID ?? "\(np.title)|\(np.artist)"
-            if isLogging, body.is_playing, key != loggedKey {
-                loggedKey = key
-                onTrack?(np, Date())
+            // The builder decides what is a new entry; this only reports what it saw.
+            if isLogging {
+                onObservation?(.track(np, progressMs: body.progress_ms, playing: body.is_playing), seenAt)
             }
         } catch SpotifyError.notConnected {
             return
@@ -280,17 +283,28 @@ final class SpotifyService: NSObject {
     private struct CurrentlyPlaying: Decodable {
         struct Item: Decodable {
             struct Named: Decodable { let id: String?; let name: String }
+            struct Image: Decodable { let url: String; let width: Int?; let height: Int? }
+            struct Album: Decodable { let id: String?; let name: String; let images: [Image]? }
             struct ExternalIDs: Decodable { let isrc: String? }
             let id: String?
             let name: String
             let artists: [Named]?
-            let album: Named?
-            let show: Named?
+            let album: Album?
+            let show: Album?
             let duration_ms: Int?
             let external_ids: ExternalIDs?
         }
         let is_playing: Bool
+        let progress_ms: Int?
         let item: Item?
+    }
+
+    /// The smallest cover that is still sharp as a list thumbnail (Spotify
+    /// usually offers 640, 300 and 64 px). A pointer, never the image.
+    private static func artwork(_ images: [CurrentlyPlaying.Item.Image]?) -> String? {
+        guard let images, !images.isEmpty else { return nil }
+        let usable = images.filter { ($0.width ?? 0) >= 120 }.min { ($0.width ?? 0) < ($1.width ?? 0) }
+        return (usable ?? images.first)?.url
     }
 
     private struct Artist: Decodable {

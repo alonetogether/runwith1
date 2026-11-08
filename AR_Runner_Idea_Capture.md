@@ -680,5 +680,22 @@ We have Claude/LLM tokens available. Where they plausibly belong, when the time 
 
 ---
 
+## 32. "Right when the drop hit, you sped up" — song-position response (tabled, 2026-11-08)
+
+*Archived, not scheduled. Recorded so the idea and what we learned about it are not lost.*
+
+**The idea.** Go below "this song" to "this moment in this song": the runner lifts at the drop, the chorus, the key change. The post-run line becomes "you picked up 1:32 into Can't Lie, right where it kicks in."
+
+**What already makes it possible.** Schema v6 stores each song's estimated start in run time plus a series of song-position sightings (Spotify every poll, Apple Music every ~2 s), so any run moment maps to a song position to about a second, seeks included. GPS Doppler speed reacts within 1–2 s, but per-second noise means a lift is only visible over roughly 5–10 s. Per-step cadence (the IMU sidecar) would be the cleaner signal; people entrain to the beat.
+
+**The missing piece: where the drop is.** We store metadata only, never audio (capture brief §5). Spotify closed audio-analysis (sections, beats) and audio-features to apps created after November 2024. Routes, in order of honesty:
+1. **Learn it from the runner.** If the same song shows a lift at the same position across several runs, that position is *their* drop, whether or not anyone labelled it. Needs no outside data; it only appears when it recurs. Reads as "you tend to lift about 1:30 into this song."
+2. **On-device analysis of local, unprotected files** (loudness and onset jumps). Apple Music catalog tracks are DRM-protected, so this covers owned files only.
+3. **A third-party section/structure source.** Unknown whether a public one still exists; check before planning on it.
+
+**Rails if built.** One run is weak evidence: a downhill, a green light or a corner looks the same as a drop. A single-run claim would need no grade change, no stop nearby and a margin beyond the noise; the recurring-pattern version is the safer first form. Deterministic code computes the response; it is phrased as an observation, never a cause. Deciding what it may claim is an `/advisor` trigger.
+
+---
+
 ## Appendix — moderation note
 UGC avatar platforms live and die on the 健全性 (*kenzensei*) moderation layer. "Our most enthusiastic early contributor is also our first moderation headache" is a sentence every one of these platforms has written. Budget for it. Daru is a person *and* a category.

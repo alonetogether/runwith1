@@ -63,7 +63,7 @@ public enum RunInsights {
         guard segments.count >= 2 else { return nil }
         var best: SongMoment?
         // Never the first song: they were fresh anyway.
-        for seg in segments.dropFirst() where seg.end - seg.start >= config.minSongPlayMs {
+        for seg in segments.dropFirst() where seg.playedMs >= config.minSongPlayMs {
             guard seg.start >= config.windowMs else { continue }
             let before = window(run.points, from: seg.start - config.windowMs, to: seg.start, config: config)
             let afterStart = seg.start + config.reactionMs
@@ -88,7 +88,7 @@ public enum RunInsights {
     // MARK: Fastest stretch
 
     public static func fastestStretch(in run: Run, config: Config = Config()) -> SongMoment? {
-        let segments = songSegments(in: run).filter { $0.end - $0.start >= config.minSongPlayMs }
+        let segments = songSegments(in: run).filter { $0.playedMs >= config.minSongPlayMs }
         guard !segments.isEmpty, !run.points.isEmpty else { return nil }
         var best: (speed: Double, end: Int, proxy: Bool)?
         // Slide a window ending at each sample; samples are ~1 s apart so this is cheap.
@@ -107,14 +107,22 @@ public enum RunInsights {
 
     // MARK: Pieces
 
-    struct Segment { let entry: MusicEntry; let start: Int; let end: Int }
+    struct Segment {
+        let entry: MusicEntry; let start: Int; let end: Int
+        /// Played time when the log says (v6), else the span.
+        var playedMs: Int { entry.playedMs ?? (end - start) }
+    }
 
-    /// Each song's span: from its start to the next entry, or the end of the run.
+    /// Each song's span. v6 entries carry their own estimated start and end
+    /// (Spotify's are corrected from up to 10 s of poll lag); older entries
+    /// run from first sight to the next entry, or the end of the run.
     static func songSegments(in run: Run) -> [Segment] {
-        let entries = run.music.sorted { $0.t < $1.t }
+        let entries = run.music.sorted { ($0.startedT ?? $0.t) < ($1.startedT ?? $1.t) }
         return entries.enumerated().map { i, e in
-            let end = i + 1 < entries.count ? entries[i + 1].t : max(run.durationMs, e.t)
-            return Segment(entry: e, start: e.t, end: end)
+            let start = max(0, e.startedT ?? e.t)
+            let next = i + 1 < entries.count ? max(0, entries[i + 1].startedT ?? entries[i + 1].t) : nil
+            let end = e.endedT ?? next ?? max(run.durationMs, start)
+            return Segment(entry: e, start: start, end: max(end, start))
         }
     }
 

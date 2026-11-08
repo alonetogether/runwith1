@@ -78,6 +78,10 @@ Native, Swift/SwiftUI, iOS-first — chosen because it is the fastest path to a 
   ],
   "music": [
     { "t": 0, "title": "", "artist": "", "source": "apple_music" }
+    // v3 adds identity/attributes (album, isrc, track_id, genre, duration_ms, bpm);
+    // v6 adds how it played: started_t, ended_t, played_ms, end, timing_fidelity,
+    // timing_method, sightings[], artwork_url, album_id, artist_id.
+    // The current shape and its rules are recorded in RunWith/README.md (Music).
   ],
   "summary": {
     "distance_m": 0.0,
@@ -117,6 +121,7 @@ The recorder just needs to produce a clean, tagged `speed_mps` from whichever so
 - MusicKit (iOS) is first-party, native, no OAuth dance, cleaner than the Spotify Web API. Spotify tightened extended API access in 2025 (25-user dev-mode cap) — a real dependency risk, so it's secondary. **[VERIFY]** current MusicKit now-playing access and Spotify API terms.
 - **System-wide audio capture is impossible.** [DECIDED] iOS does not let an app read arbitrary system audio (whatever's playing in another app) — that's private-API territory and an App Store rejection. So music is **per-source connectors**, not universal: clean now-playing from Apple Music; Spotify via its API if connected; everything else, nothing.
 - [PRINCIPLE] Music is **metadata only** (title/artist/timestamp), never hosted or redistributed, and **embodiment-gated** — a track attaches to a Run only if it was genuinely playing during the run.
+- [BUILT, schema v6] Each play is one entry with raw position sightings and derived start, end, play time and end reason (completed / skipped / stopped / run_ended / lost). No "listened" verdict is stored; that is a later, tested filter. Cover art is stored as a link (Spotify) or cached on device (Apple Music), never as image bytes in the Run.
 
 ---
 
