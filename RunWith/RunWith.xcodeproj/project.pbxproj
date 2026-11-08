@@ -13,6 +13,8 @@
 		3EBC317E04493ECA7829186E /* RunningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 343DA64591FD60974A9F6C87 /* RunningView.swift */; };
 		44859E5203E5518D7E66F804 /* SpotifyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B452A53B155ACB1B4E59934C /* SpotifyService.swift */; };
 		504C83E25BF78EB72DFB2958 /* RunCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55A8EC5FDF8187F46DA489F8 /* RunCheckpoint.swift */; };
+		60BB60D73A05ADBA350A26F5 /* Announcer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738B76194291972063F1A056 /* Announcer.swift */; };
+		6A60F1E6291CF49DB1BF78AA /* SprintViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B5A67F45CCB6F2876FD6E2 /* SprintViews.swift */; };
 		6C496DB57F857BBCBD5B021D /* PedometerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CE1813F8D31DEDFFDEB0ECE /* PedometerService.swift */; };
 		75BD73C18FD97293083C6CE8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 56FCBC618B69C0DD27B50FE4 /* Assets.xcassets */; };
 		86BCBBA5BA19E4BFDF5E036B /* RunStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FD6DFF7D03551A9B8C4A16 /* RunStore.swift */; };
@@ -25,12 +27,14 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		00B5A67F45CCB6F2876FD6E2 /* SprintViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SprintViews.swift; sourceTree = "<group>"; };
 		343DA64591FD60974A9F6C87 /* RunningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningView.swift; sourceTree = "<group>"; };
 		4F31E0DBCD2CC99262C353A5 /* RunWithApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunWithApp.swift; sourceTree = "<group>"; };
 		55A8EC5FDF8187F46DA489F8 /* RunCheckpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCheckpoint.swift; sourceTree = "<group>"; };
 		55E88D22DBCE69D3F9CE3386 /* GearCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GearCheckView.swift; sourceTree = "<group>"; };
 		56FCBC618B69C0DD27B50FE4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6641F84C2E210A4F2F9DF8C9 /* RunDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailView.swift; sourceTree = "<group>"; };
+		738B76194291972063F1A056 /* Announcer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Announcer.swift; sourceTree = "<group>"; };
 		73F9594D8A4E741D5E31499E /* MusicLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicLogger.swift; sourceTree = "<group>"; };
 		78FD6DFF7D03551A9B8C4A16 /* RunStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunStore.swift; sourceTree = "<group>"; };
 		86339E443C458D267C5F8761 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
@@ -67,6 +71,7 @@
 		4A78AFE16822D8363849D21F /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				738B76194291972063F1A056 /* Announcer.swift */,
 				86339E443C458D267C5F8761 /* LocationService.swift */,
 				73F9594D8A4E741D5E31499E /* MusicLogger.swift */,
 				8CE1813F8D31DEDFFDEB0ECE /* PedometerService.swift */,
@@ -85,6 +90,7 @@
 				55E88D22DBCE69D3F9CE3386 /* GearCheckView.swift */,
 				6641F84C2E210A4F2F9DF8C9 /* RunDetailView.swift */,
 				343DA64591FD60974A9F6C87 /* RunningView.swift */,
+				00B5A67F45CCB6F2876FD6E2 /* SprintViews.swift */,
 				D485F635F27DF0E49C6A9681 /* WelcomeView.swift */,
 			);
 			path = Views;
@@ -195,6 +201,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				60BB60D73A05ADBA350A26F5 /* Announcer.swift in Sources */,
 				8FA5467E6E71FFEFF2819C8D /* ArmingView.swift in Sources */,
 				3B287BD22BCCF2FCF3E6853D /* GearCheckView.swift in Sources */,
 				DDA3AD08ACB206ADC1FCB6C9 /* LocationService.swift in Sources */,
@@ -207,6 +214,7 @@
 				8E1AC629D79B72F3E698E249 /* RunWithApp.swift in Sources */,
 				3EBC317E04493ECA7829186E /* RunningView.swift in Sources */,
 				44859E5203E5518D7E66F804 /* SpotifyService.swift in Sources */,
+				6A60F1E6291CF49DB1BF78AA /* SprintViews.swift in Sources */,
 				FADA8D3B23A003EEB8F83D6A /* WelcomeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

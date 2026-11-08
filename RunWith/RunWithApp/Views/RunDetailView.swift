@@ -36,12 +36,16 @@ struct RunDetailView: View {
                 hero(run)
             }
 
-            Section {
-                StyleRow(result: style)
-            } header: {
-                Text("This time")
-            } footer: {
-                Text("One run is weak evidence. A style is a tendency, and the label only firms up when it recurs across runs.")
+            if run.effort != nil {
+                SprintResultSection(run: run, history: sprintHistory(for: run))
+            } else {
+                Section {
+                    StyleRow(result: style)
+                } header: {
+                    Text("This time")
+                } footer: {
+                    Text("One run is weak evidence. A style is a tendency, and the label only firms up when it recurs across runs.")
+                }
             }
 
             if let moment {
@@ -128,6 +132,14 @@ struct RunDetailView: View {
 
     // MARK: Pieces
 
+    /// Earlier sprints at the same distance: the only baseline a sprint style is judged against.
+    private func sprintHistory(for run: Run) -> [SprintAnalysis.Result] {
+        guard let target = run.effort?.target.value else { return [] }
+        return services.store.runs
+            .filter { $0.id != run.id && $0.startedAt < run.startedAt && $0.effort?.target.value == target }
+            .compactMap { SprintAnalysis.analyze($0).result }
+    }
+
     private func hero(_ run: Run) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -165,6 +177,15 @@ struct RunDetailView: View {
     private func details(_ run: Run) -> some View {
         LabeledContent("Moving time", value: PaceFormat.elapsed(ms: run.summary.movingTimeMs))
         LabeledContent("Max speed", value: String(format: "%.1f m/s", run.summary.maxSpeedMps))
+        if let e = run.effort {
+            LabeledContent("Sprint finish", value: e.finish?.method?.replacingOccurrences(of: "_", with: " ") ?? "none")
+            if let g = e.distanceGps?.value, let d = e.distanceDoppler?.value {
+                LabeledContent("Sprint distance (GPS · Doppler)", value: "\(Int(g.rounded())) · \(Int(d.rounded())) m of \(Int(e.target.value))")
+            }
+            if let fm = e.firstMovement?.value, let gate = e.gate?.value {
+                LabeledContent("First movement after go", value: String(format: "%.1f s (±1 s)", Double(fm - gate) / 1000))
+            }
+        }
         if let armed = run.armedAt {
             LabeledContent("Waited for GPS", value: PaceFormat.elapsed(ms: Int(run.startedAt.timeIntervalSince(armed) * 1000)))
         }

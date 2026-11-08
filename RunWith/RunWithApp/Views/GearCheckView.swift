@@ -17,6 +17,7 @@ struct GearCheckView: View {
     @AppStorage("lastIntent") private var lastIntentRaw = ""
     @State private var showDetails = false
     @State private var confirmDiscard = false
+    @State private var showSprintSetup = false
 
     /// Returning once a run has been saved: the baseline is earned by running,
     /// not by passing a setup.
@@ -62,6 +63,9 @@ struct GearCheckView: View {
             }
         }
         .animation(.default, value: expanded)
+        .sheet(isPresented: $showSprintSetup) {
+            SprintSetupView()
+        }
         .navigationDestination(for: UUID.self) { id in
             if let run = services.store.runs.first(where: { $0.id == id }) {
                 RunDetailView(run: run, isFresh: false)
@@ -157,7 +161,7 @@ struct GearCheckView: View {
             Text(captureSummary)
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            IntentChips(raw: $lastIntentRaw)
+            IntentChips(raw: $lastIntentRaw) { showSprintSetup = true }
             startButton
             startNoteRow
         }
@@ -172,7 +176,7 @@ struct GearCheckView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            IntentChips(raw: $lastIntentRaw)
+            IntentChips(raw: $lastIntentRaw) { showSprintSetup = true }
             startButton
             startNoteRow
             Button { showDetails = true } label: {
@@ -342,6 +346,8 @@ struct GearCheckView: View {
 /// the run as a self-report; tapping the selected chip clears it.
 struct IntentChips: View {
     @Binding var raw: String
+    /// Opens sprint setup: a protocol, not an intent (the run is stored as Push).
+    var onSprint: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 8) {
@@ -362,6 +368,18 @@ struct IntentChips: View {
                 }
                 .buttonStyle(.borderless)
                 .accessibilityAddTraits(on ? .isSelected : [])
+            }
+            if let onSprint {
+                Button(action: onSprint) {
+                    Label("Sprint", systemImage: "stopwatch")
+                        .font(.callout.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .overlay(Capsule().stroke(Color.orange, lineWidth: 1.5))
+                        .foregroundStyle(Color.orange)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityHint("Sets up a timed sprint between marked lines.")
             }
             Spacer(minLength: 0)
         }
@@ -455,6 +473,7 @@ struct RunRow: View {
                 Text(PaceFormat.elapsed(ms: run.durationMs))
                 Text("\(PaceFormat.minPerKm(speedMps: run.summary.avgSpeedMps)) /km")
                 if run.geoPoints.isEmpty { Text("indoor") }
+                if let e = run.effort { Text("sprint \(Int(e.target.value)) m").foregroundStyle(.orange) }
             }
             .font(.caption)
             .foregroundStyle(.secondary)

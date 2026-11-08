@@ -109,7 +109,9 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
                         horizontalAccuracyM: l.horizontalAccuracy,
                         speedMps: l.speed >= 0 ? l.speed : nil,
                         altitudeM: l.verticalAccuracy >= 0 ? l.altitude : nil,
-                        verticalAccuracyM: l.verticalAccuracy)
+                        verticalAccuracyM: l.verticalAccuracy,
+                        speedAccuracyMps: l.speedAccuracy >= 0 ? l.speedAccuracy : nil,
+                        courseDeg: l.course >= 0 ? l.course : nil)
         }
         Task { @MainActor in
             for f in fixes {

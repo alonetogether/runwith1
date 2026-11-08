@@ -11,30 +11,33 @@ struct RunningView: View {
     var body: some View {
         let r = services.recorder
         VStack(spacing: 20) {
-            Text(PaceFormat.elapsed(ms: r.elapsedMs))
-                .font(.system(size: 72, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .padding(.top, 8)
+            if let phase = r.sprintPhase {
+                SprintRaceView(phase: phase)
+            } else {
+                Text(PaceFormat.elapsed(ms: r.elapsedMs))
+                    .font(.system(size: 72, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .padding(.top, 8)
 
-            HStack(spacing: 0) {
-                Metric(value: PaceFormat.kilometres(r.distanceM), unit: "km")
-                Metric(value: PaceFormat.minPerKm(speedMps: r.speedMps), unit: "min/km")
-                Metric(value: r.cadenceSpm.map { "\(Int($0.rounded()))" } ?? "–", unit: "spm")
-            }
-
-            sourceChip
-
-            Map(position: $camera) {
-                if r.trace.count >= 2 {
-                    MapPolyline(coordinates: r.trace)
-                        .stroke(.orange, lineWidth: 4)
+                HStack(spacing: 0) {
+                    Metric(value: PaceFormat.kilometres(r.distanceM), unit: "km")
+                    Metric(value: PaceFormat.minPerKm(speedMps: r.speedMps), unit: "min/km")
+                    Metric(value: r.cadenceSpm.map { "\(Int($0.rounded()))" } ?? "–", unit: "spm")
                 }
-                UserAnnotation()
-            }
-            .mapStyle(.standard(pointsOfInterest: .excludingAll))
-            .frame(height: 260)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
 
+                sourceChip
+
+                Map(position: $camera) {
+                    if r.trace.count >= 2 {
+                        MapPolyline(coordinates: r.trace)
+                            .stroke(.orange, lineWidth: 4)
+                    }
+                    UserAnnotation()
+                }
+                .mapStyle(.standard(pointsOfInterest: .excludingAll))
+                .frame(height: 260)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
             Spacer(minLength: 0)
 
             HoldToEndButton {
