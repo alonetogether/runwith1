@@ -18,6 +18,7 @@ struct GearCheckView: View {
     @State private var showDetails = false
     @State private var confirmDiscard = false
     @State private var showSprintSetup = false
+    @State private var showOtherMusicSource = false
 
     /// Returning once a run has been saved: the baseline is earned by running,
     /// not by passing a setup.
@@ -109,10 +110,7 @@ struct GearCheckView: View {
         Section {
             StatusRow(status: locationStatus)
             StatusRow(status: stepsStatus)
-            StatusRow(status: musicStatus)
-            if services.spotify.isConfigured || isReturning == false {
-                StatusRow(status: spotifyStatus)
-            }
+            musicRow
             indoorToggle(withCaption: true)
             if isReturning {
                 Button("Back to a glance") { showDetails = false }
@@ -122,7 +120,7 @@ struct GearCheckView: View {
             Text("Gear check")
         } footer: {
             if !isReturning {
-                Text("Here is what you have got. Phone-only is fine: Location is all a run needs. Steps add cadence, and distance on a treadmill. Music notes what was playing.")
+                Text("Here is what you have got. Phone-only is fine: Location is all a run needs. Steps add cadence, and distance on a treadmill. Music logs what played, from whichever service you use.")
             }
         }
     }
@@ -214,13 +212,12 @@ struct GearCheckView: View {
 
     /// Every source in one line, e.g. "GPS ✓ · Steps off · Music … · Spotify ✓".
     private var readinessLine: String {
-        var statuses = [locationStatus, stepsStatus, musicStatus]
-        if services.spotify.isConfigured { statuses.append(spotifyStatus) }
-        return statuses.map { st in
+        [locationStatus, stepsStatus, musicStatus].map { st in
             switch st.state {
             case .ok: return "\(st.title) ✓"
             case .pending: return st.title == "GPS" ? "GPS searching" : "\(st.title) …"
             case .off: return "\(st.title) off"
+            case .skipped: return "\(st.title) not logged"
             }
         }.joined(separator: " · ")
     }
@@ -272,39 +269,57 @@ struct GearCheckView: View {
         }
     }
 
+    /// One Music item, whichever service logs it. Ready once any service is
+    /// connected; what is playing right now is information, never a blocker.
+    /// No service is a neutral choice ("not logged"), not a failure: music is
+    /// optional and phone-only is a complete setup.
     private var musicStatus: GearStatus {
-        let music = services.music
-        if music.isDenied {
-            return GearStatus(icon: "music.note", title: "Music", detail: "Not connected.", state: .off,
-                              actionTitle: "Settings", action: openSettings)
-        } else if !music.isAuthorized {
-            return GearStatus(icon: "music.note", title: "Music", detail: "Logs title and artist only, from Apple Music.",
-                              state: .off, actionTitle: "Connect", action: music.requestPermission)
-        } else if let np = music.nowPlaying {
+        let music = services.music, sp = services.spotify
+        let sources = [music.isAuthorized ? "Apple Music" : nil, sp.isConnected ? "Spotify" : nil].compactMap { $0 }
+        if sources.isEmpty {
+            if sp.isConnecting {
+                return GearStatus(icon: "music.note", title: "Music", detail: "Signing in to Spotify…", state: .pending)
+            }
             return GearStatus(icon: "music.note", title: "Music",
-                              detail: "\(music.isPlaying ? "Now playing" : "Paused"): \(np.title) — \(np.artist)", state: .ok)
-        } else {
-            return GearStatus(icon: "music.note", title: "Music", detail: "Connected · nothing playing.", state: .pending)
+                              detail: sp.lastError ?? "Optional. Connect the service you use to log what played.",
+                              state: .skipped)
         }
+        var detail = "Logging from " + sources.joined(separator: " and ")
+        let playing = (sp.isConnected && sp.isPlaying ? sp.nowPlaying : nil) ?? (music.isPlaying ? music.nowPlaying : nil)
+        if let np = playing { detail += " · Now playing: \(np.title) — \(np.artist)" }
+        return GearStatus(icon: "music.note", title: "Music", detail: detail, state: .ok)
     }
 
-    private var spotifyStatus: GearStatus {
-        let sp = services.spotify
-        if !sp.isConfigured {
-            return GearStatus(icon: "music.note.list", title: "Spotify",
-                              detail: "Not in this build: it needs a Spotify client ID (see README).", state: .off)
-        } else if sp.isConnecting {
-            return GearStatus(icon: "music.note.list", title: "Spotify", detail: "Signing in…", state: .pending)
-        } else if !sp.isConnected {
-            return GearStatus(icon: "music.note.list", title: "Spotify",
-                              detail: sp.lastError ?? "Logs title and artist of what Spotify plays, on any device.",
-                              state: .off, actionTitle: "Connect", action: sp.connect)
-        } else if let np = sp.nowPlaying {
-            return GearStatus(icon: "music.note.list", title: "Spotify",
-                              detail: "\(sp.isPlaying ? "Now playing" : "Paused"): \(np.title) — \(np.artist)", state: .ok)
-        } else {
-            return GearStatus(icon: "music.note.list", title: "Spotify",
-                              detail: sp.lastError ?? "Connected · nothing playing.", state: .pending)
+    /// The music row: both services offered until one is chosen, then the
+    /// unused one steps aside behind "Add another source".
+    private var musicRow: some View {
+        let music = services.music, sp = services.spotify
+        let apple = music.isAuthorized, spotify = sp.isConnected
+        let canOfferApple = !apple
+        let canOfferSpotify = !spotify && sp.isConfigured
+        return VStack(alignment: .leading, spacing: 10) {
+            StatusRow(status: musicStatus)
+            if !apple && !spotify || showOtherMusicSource {
+                HStack(spacing: 10) {
+                    if canOfferApple {
+                        Button(music.isDenied ? "Apple Music (Settings)" : "Apple Music") {
+                            if music.isDenied { openSettings() } else { music.requestPermission() }
+                        }
+                    }
+                    if canOfferSpotify {
+                        Button("Spotify") { sp.connect() }
+                            .disabled(sp.isConnecting)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(.leading, 36)
+            } else if canOfferApple || canOfferSpotify {
+                Button("Add another source") { showOtherMusicSource = true }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+                    .padding(.leading, 36)
+            }
         }
     }
 
@@ -392,7 +407,8 @@ struct IntentChips: View {
 
 /// One source's readiness, shared by the detailed row and the glance chip.
 struct GearStatus {
-    enum State { case ok, pending, off }
+    /// `skipped`: deliberately not used, and that is fine (an optional source).
+    enum State { case ok, pending, off, skipped }
 
     let icon: String
     let title: String
@@ -405,7 +421,7 @@ struct GearStatus {
         switch state {
         case .ok: return .green
         case .pending: return .orange
-        case .off: return .secondary
+        case .off, .skipped: return .secondary
         }
     }
 
@@ -414,6 +430,7 @@ struct GearStatus {
         case .ok: return "checkmark.circle.fill"
         case .pending: return "circle.dotted"
         case .off: return "circle"
+        case .skipped: return "minus.circle"
         }
     }
 }
