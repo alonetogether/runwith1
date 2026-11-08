@@ -41,6 +41,20 @@ final class RunStore {
         }
     }
 
+    /// The only way to change a stored run after the fact: annotations only,
+    /// via `Run.annotated`, so nothing measured is ever rewritten.
+    @discardableResult
+    func annotate(_ id: UUID, _ change: (inout RunAnnotations) -> Void) -> Run? {
+        guard let run = runs.first(where: { $0.id == id }) else { return nil }
+        let updated = run.annotated(change)
+        save(updated)
+        return updated
+    }
+
+    func run(_ id: UUID) -> Run? {
+        runs.first { $0.id == id }
+    }
+
     func delete(_ run: Run) {
         try? FileManager.default.removeItem(at: jsonURL(for: run))
         reload()

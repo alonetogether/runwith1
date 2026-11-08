@@ -12,7 +12,9 @@ final class RunRecorder {
     enum State {
         case idle
         case running
-        case finished(Run)
+        /// The saved run's id. Views read the run from the store, so an
+        /// annotation made on the finish screen is never shown stale.
+        case finished(UUID)
     }
 
     private(set) var state: State = .idle
@@ -66,7 +68,7 @@ final class RunRecorder {
     /// Keeps the unfinished run as it was at its last checkpoint and shows it.
     func saveRecovered(store: RunStore) {
         guard case .idle = state, let run = keepRecovered(store: store) else { return }
-        state = .finished(run)
+        state = .finished(run.id)
     }
 
     @discardableResult
@@ -144,7 +146,7 @@ final class RunRecorder {
         store.save(run)
         checkpoint.close()
         builder = nil
-        state = .finished(run)
+        state = .finished(run.id)
     }
 
     func reset() {

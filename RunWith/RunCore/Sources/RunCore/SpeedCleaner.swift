@@ -204,10 +204,19 @@ public struct RunBuilder: Codable, Sendable {
     private var gpsRaw: [[Double?]] = []
     private var pedRaw: [[Double?]] = []
 
-    public init(id: UUID = UUID(), startedAt: Date, config: CleanerConfig = CleanerConfig()) {
+    /// When Start was tapped, if recording waited for a fix. Optional with a
+    /// default so checkpoints written by older builds still decode.
+    public private(set) var armedAt: Date? = nil
+    /// The intent the runner declared at Start, if any.
+    public private(set) var intent: Reported<RunIntent>? = nil
+
+    public init(id: UUID = UUID(), startedAt: Date, config: CleanerConfig = CleanerConfig(),
+                armedAt: Date? = nil, intent: Reported<RunIntent>? = nil) {
         self.id = id
         self.startedAt = startedAt
         self.config = config
+        self.armedAt = armedAt
+        self.intent = intent
         self.cleaner = SpeedCleaner(startedAt: startedAt, config: config)
     }
 
@@ -256,6 +265,12 @@ public struct RunBuilder: Codable, Sendable {
             lastRejectReason = reason
             return verdict
         }
+    }
+
+    /// Keeps a fix that arrived while waiting for GPS to settle, before the
+    /// run's clock started: raw stream only (negative `t_ms`), never a point.
+    public mutating func recordPreStartFix(_ fix: LocationFix) {
+        gpsRaw.append([ms(fix.timestamp), fix.lat, fix.lng, fix.horizontalAccuracyM, fix.speedMps, fix.altitudeM])
     }
 
     /// Always consumes the sample (cadence, raw stream, distance bookkeeping);
@@ -326,6 +341,7 @@ public struct RunBuilder: Codable, Sendable {
         return Run(id: id, startedAt: startedAt, endedAt: end, durationMs: durationMs,
                    points: points, music: music,
                    summary: RunSummary(distanceM: distanceM, avgSpeedMps: avg, maxSpeedMps: maxSpeedMps, movingTimeMs: movingTimeMs),
-                   rawStreams: streams)
+                   rawStreams: streams, armedAt: armedAt,
+                   annotations: RunAnnotations(intent: intent.map { [$0] } ?? []))
     }
 }

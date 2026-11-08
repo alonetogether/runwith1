@@ -69,7 +69,8 @@ struct RunDetailView: View {
             Section("Capture") {
                 let gps = run.points.filter { $0.source == .gps }.count
                 let ped = run.points.filter { $0.source == .pedometer }.count
-                let rawFixes = run.rawStreams["gps_fixes"]?.samples.count ?? 0
+                // Fixes from before the clock started (while waiting for GPS) are not rejections.
+                let rawFixes = run.rawStreams["gps_fixes"]?.samples.filter { ($0.first ?? nil).map { $0 >= 0 } ?? true }.count ?? 0
                 LabeledContent("GPS points (measured)", value: "\(gps)")
                 LabeledContent("Step points (proxy)", value: "\(ped)")
                 LabeledContent("GPS fixes rejected", value: "\(max(0, rawFixes - gps))")
@@ -236,6 +237,7 @@ struct StyleRow: View {
             case .flat: return "Every quarter sat within 1.5% of your average: even, but too flat to call.\(adjusted)"
             case .treadmill: return "Style needs a run where you set your own pace. A treadmill belt sets it for you."
             case .noDistance: return "No distance was recorded, so there are no quarters to compare."
+            case .walk: return "You marked this as a walk. Style calls are for runs."
             }
         }
     }

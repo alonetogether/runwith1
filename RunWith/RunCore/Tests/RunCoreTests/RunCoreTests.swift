@@ -102,7 +102,7 @@ final class RunCoreTests: XCTestCase {
         XCTAssertEqual(b.liveSource(now: gps.last!.timestamp), .gps)
     }
 
-    func testRunJSONUsesSchemaV3SnakeCaseAndExplicitNulls() throws {
+    func testRunJSONUsesCurrentSchemaSnakeCaseAndExplicitNulls() throws {
         var b = RunBuilder(startedAt: start)
         for f in straightTrack(speed: 3, seconds: 5) { b.addFix(f) }
         b.addPedometer(PedometerSample(timestamp: start.addingTimeInterval(10), steps: 10, cumulativeDistanceM: 10, paceSPerM: nil, cadenceStepsPerS: 2.7))
@@ -113,7 +113,7 @@ final class RunCoreTests: XCTestCase {
 
         let data = try run.jsonData()
         let text = String(decoding: data, as: UTF8.self)
-        XCTAssertTrue(text.contains("\"schema_version\" : 3"))
+        XCTAssertTrue(text.contains("\"schema_version\" : \(Run.currentSchemaVersion)"))
         XCTAssertTrue(text.contains("\"genre\" : null"))     // music attribute the player did not give
         XCTAssertTrue(text.contains("\"speed_mps\""))
         XCTAssertTrue(text.contains("\"raw_speed_mps\""))

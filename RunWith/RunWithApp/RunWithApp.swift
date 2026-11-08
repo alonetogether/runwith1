@@ -39,8 +39,10 @@ struct ContentView: View {
                 GearCheckView()
             case .running:
                 RunningView()
-            case .finished(let run):
-                RunDetailView(run: run, isFresh: true)
+            case .finished(let id):
+                if let run = services.store.run(id) {
+                    RunDetailView(run: run, isFresh: true)
+                }
             }
         }
         .onChange(of: scenePhase) { _, phase in

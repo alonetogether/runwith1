@@ -44,6 +44,8 @@ public enum StyleClassifier {
         case treadmill
         /// No distance accrued, so there are no quarters.
         case noDistance
+        /// The runner declared a walk. Style calls are for runs.
+        case walk
     }
 
     public enum Outcome: Equatable, Sendable {
@@ -90,6 +92,10 @@ public enum StyleClassifier {
     // MARK: Classify
 
     public static func classify(_ run: Run, config: Config = Config()) -> Result {
+        // A declared venue, like the treadmill: the register is place, not effort (Idea Capture §25).
+        if run.annotations.currentIntent == .walk {
+            return Result(outcome: .unclassified(.walk), quarterRatios: [], gradeAdjusted: false)
+        }
         let points = run.points
         guard run.durationMs >= config.minDurationMs, points.count >= config.minPoints else {
             return Result(outcome: .unclassified(.tooShort), quarterRatios: [], gradeAdjusted: false)
